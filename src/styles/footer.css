@@ -1,0 +1,48 @@
+/* styles/footer.css */
+
+footer {
+  transition: all 0.3s ease;
+}
+
+footer a {
+  transition: color 0.2s ease;
+}
+
+footer a:hover {
+  color: var(--primary-main);
+}
+
+.MuiIconButton-root {
+  transition: transform 0.3s ease, color 0.2s ease;
+}
+
+.MuiIconButton-root:hover {
+  transform: translateY(-3px);
+  color: var(--primary-main);
+}
+
+/* Animation pour les éléments de contact */
+.contact-item {
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.contact-item:hover {
+  transform: translateX(5px);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  footer .MuiGrid-container {
+    text-align: center;
+  }
+  
+  footer .MuiBox-root {
+    justify-content: center;
+  }
+  
+  .contact-item {
+    justify-content: center;
+  }
+}
