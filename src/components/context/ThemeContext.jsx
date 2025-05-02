@@ -12,8 +12,8 @@ import {
   responsiveFontSizes,
 } from "@mui/material";
 
-// 1. Création du contexte
-const ThemeContext = createContext();
+// 1. Création et export du contexte
+export const ThemeContext = createContext();
 
 // 2. Hook personnalisé pour accéder au thème
 export const useCustomTheme = () => useContext(ThemeContext);
@@ -29,11 +29,10 @@ export const ThemeProvider = ({ children }) => {
     }
   }, []);
 
-  // Fonction pour alterner le mode de thème
   const toggleTheme = () => {
     const newMode = mode === "light" ? "dark" : "light";
     setMode(newMode);
-    localStorage.setItem("themeMode", newMode); // Sauvegarder le mode dans localStorage
+    localStorage.setItem("themeMode", newMode);
   };
 
   const theme = useMemo(() => {
@@ -60,15 +59,18 @@ export const ThemeProvider = ({ children }) => {
       },
     });
 
-    return responsiveFontSizes(baseTheme); // Application des tailles de polices responsives
+    return responsiveFontSizes(baseTheme);
   }, [mode]);
 
   return (
     <ThemeContext.Provider value={{ toggleTheme, mode }}>
       <MuiThemeProvider theme={theme}>
-        <CssBaseline /> {/* Applique les styles de base pour le thème */}
+        <CssBaseline />
         {children}
       </MuiThemeProvider>
     </ThemeContext.Provider>
   );
 };
+
+// Export par défaut - choisissez soit le Provider soit le Context selon votre besoin
+export default ThemeProvider; // Ou ThemeContext si vous préférez

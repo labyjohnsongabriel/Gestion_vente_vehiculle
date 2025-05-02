@@ -1,16 +1,18 @@
+// src/context/FeedbackContext.jsx
 import { useState, createContext, useContext } from "react";
-import { Snackbar, Alert } from "@mui/material";
+import { Snackbar, Alert, Slide } from "@mui/material";
+import "../../styles/Feddback.css";
 
 const FeedbackContext = createContext();
 
 export const FeedbackProvider = ({ children }) => {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
-  const [severity, setSeverity] = useState("success"); // 'error', 'warning', 'info', 'success'
+  const [severity, setSeverity] = useState("success");
 
-  const showFeedback = (newMessage, newSeverity = "success") => {
-    setMessage(newMessage);
-    setSeverity(newSeverity);
+  const showFeedback = (msg, sev = "success") => {
+    setMessage(msg);
+    setSeverity(sev);
     setOpen(true);
   };
 
@@ -24,11 +26,18 @@ export const FeedbackProvider = ({ children }) => {
       {children}
       <Snackbar
         open={open}
-        autoHideDuration={6000}
         onClose={handleClose}
+        autoHideDuration={5000}
+        TransitionComponent={Slide}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        className="feedback-snackbar"
       >
-        <Alert onClose={handleClose} severity={severity} sx={{ width: "100%" }}>
+        <Alert
+          onClose={handleClose}
+          severity={severity}
+          variant="filled"
+          className="feedback-alert"
+        >
           {message}
         </Alert>
       </Snackbar>

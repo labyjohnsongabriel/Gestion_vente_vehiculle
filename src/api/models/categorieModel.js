@@ -1,27 +1,52 @@
-const db = require('../config/db');
+const Commande = require("../models/commandeModel");
 
-const Categorie = {
-  getAll: (callback) => {
-    db.query('SELECT * FROM categories', callback);
-  },
-
-  getById: (id, callback) => {
-    db.query('SELECT * FROM categories name= ?, description= ? WHERE id = ?', [id], callback);
-  },
-
-  create: (data, callback) => {
-    const sql = 'INSERT INTO categories (name, description) VALUES (?, ?)';
-    db.query(sql, [data.name, data.description], callback);
-  },
-
-  update: (id, data, callback) => {
-    const sql = 'UPDATE categories SET name = ?, description = ? WHERE id = ?';
-    db.query(sql, [data.name, data.description, id], callback);
-  },
-
-  delete: (id, callback) => {
-    db.query('DELETE FROM categories WHERE id = ?', [id], callback);
-  }
+exports.getAllCommandes = (req, res) => {
+  Commande.getAll((err, results) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(results);
+  });
 };
 
-module.exports = Categorie;
+exports.getCommandeById = (req, res) => {
+  Commande.getById(req.params.id, (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    if (result.length === 0)
+      return res.status(404).json({ message: "Commande non trouvée" });
+    res.json(result[0]);
+  });
+};
+
+exports.createCommande = (req, res) => {
+  const { client_id, user_id } = req.body;
+
+  if (!client_id || !user_id) {
+    return res
+      .status(400)
+      .json({ error: "Client et utilisateur sont requis." });
+  }
+
+  Commande.create(req.body, (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res
+      .status(201)
+      .json({ message: "Commande créée avec succès", id: result.insertId });
+  });
+};
+
+exports.updateCommande = (req, res) => {
+  const id = req.params.id;
+
+  Commande.update(id, req.body, (err) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ message: "Commande mise à jour avec succès" });
+  });
+};
+
+exports.deleteCommande = (req, res) => {
+  const id = req.params.id;
+
+  Commande.delete(id, (err) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json({ message: "Commande supprimée avec succès" });
+  });
+};

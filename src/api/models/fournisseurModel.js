@@ -1,34 +1,45 @@
 const db = require("../config/db");
 
 const Fournisseur = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM fournisseurs", callback);
+  getAll: async () => {
+    const query = "SELECT * FROM fournisseurs";
+    const [rows] = await db.query(query);
+    return rows;
   },
 
-  getById: (id, callback) => {
-    db.query("SELECT * FROM fournisseurs WHERE id = ?", [id], callback);
+  getById: async (id) => {
+    const query = "SELECT * FROM fournisseurs WHERE id = ?";
+    const [rows] = await db.query(query, [id]);
+    return rows[0];
   },
 
-  create: (data, callback) => {
+  create: async (data) => {
     const { nom, adresse, telephone, email } = data;
-    db.query(
-      "INSERT INTO fournisseurs (nom, adresse, telephone, email) VALUES (?, ?, ?, ?)",
-      [nom, adresse, telephone, email],
-      callback
-    );
+    const query =
+      "INSERT INTO fournisseurs (nom, adresse, telephone, email , date_ajout) VALUES (?, ?, ?, ?)";
+    const [result] = await db.query(query, [nom, adresse, telephone, email, date_ajout]);
+    return result.insertId;
   },
 
-  update: (id, data, callback) => {
+  update: async (id, data) => {
     const { nom, adresse, telephone, email } = data;
-    db.query(
-      "UPDATE fournisseurs SET nom = ?, adresse = ?, telephone = ?, email = ? WHERE id = ?",
-      [nom, adresse, telephone, email, id],
-      callback
-    );
+    const query =
+      "UPDATE fournisseurs SET nom = ?, adresse = ?, telephone = ?, email = ? date_ajout=?  WHERE id = ?";
+    const [result] = await db.query(query, [
+      nom,
+      adresse,
+      telephone,
+      email,
+      date_ajout,
+      id,
+    ]);
+    return result.affectedRows;
   },
 
-  delete: (id, callback) => {
-    db.query("DELETE FROM fournisseurs WHERE id = ?", [id], callback);
+  delete: async (id) => {
+    const query = "DELETE FROM fournisseurs WHERE id = ?";
+    const [result] = await db.query(query, [id]);
+    return result.affectedRows;
   },
 };
 

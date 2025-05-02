@@ -52,7 +52,7 @@ const yearlyData = [
   { name: "Déc", sales: 6000 },
 ];
 
-export const SalesChart = () => {
+ const SalesChart = () => {
   const [period, setPeriod] = useState("year");
 
   // Choisir les données selon la période
@@ -128,3 +128,6 @@ export const SalesChart = () => {
     </Box>
   );
 };
+
+
+export default SalesChart;

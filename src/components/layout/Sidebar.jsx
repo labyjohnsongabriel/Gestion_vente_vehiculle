@@ -11,8 +11,9 @@ import {
   Box,
   useMediaQuery,
   IconButton,
+  Avatar,
+  Chip,
 } from "@mui/material";
-
 import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
@@ -21,92 +22,209 @@ import {
   Settings as SettingsIcon,
   AccountCircle as AccountIcon,
   Error as ErrorIcon,
-  Star as StarIcon,
   ExpandLess,
   ExpandMore,
   BarChart as BarChartIcon,
   ListAlt as ListAltIcon,
   Feedback as FeedbackIcon,
   ChevronLeft,
-  Menu,
+  Store as StoreIcon,
+  Receipt as ReceiptIcon,
+  Category as CategoryIcon,
+  DirectionsCar as CarIcon,
+  Build as BuildIcon,
+  Assessment as AssessmentIcon,
+  Security as SecurityIcon,
 } from "@mui/icons-material";
-
 import { Link } from "react-router-dom";
-import { useTheme } from "@mui/material/styles";
+import { useTheme, styled } from "@mui/material/styles";
 
-// Correction du chemin : styles/slide.css →  (supposons que tu es dans src/components/layout/)
-import "../../styles/slide.css";
+const PremiumDrawer = styled(Drawer)(({ theme }) => ({
+  "& .MuiDrawer-paper": {
+    width: 310,
+    background: "linear-gradient(180deg, #3a5169 0%, #2a2a4a 100%)",
+    color: theme.palette.common.white,
+    borderRight: "none",
+    boxShadow: "5px 0 15px rgba(0,0,0,0.1)",
+    transition: theme.transitions.create("width", {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+  },
+}));
 
-// Correction du chemin : Setting.jsx est dans components/layout/
-//import Setting from "../../pages/Setting"; // au lieu de "../layout/Setting.jsx"
+const PremiumListItem = styled(ListItemButton)(({ theme }) => ({
+  margin: "4px 8px",
+
+  transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+  "&:hover": {
+    background: "rgba(10, 8, 8, 0.15)",
+    transform: "translateX(5px)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+  },
+  "&.Mui-selected": {
+    background:
+      "linear-gradient(90deg, rgba(47, 75, 207, 0.3) 0%, rgba(138,95,182,0.3) 100%)",
+    borderLeft: "4px solid #7c8dee",
+  },
+}));
+
+const PremiumSubListItem = styled(ListItemButton)(({ theme }) => ({
+  paddingLeft: "40px !important",
+  borderRadius: "8px",
+  margin: "2px 8px",
+  transition: "all 0.2s ease",
+  "&:hover": {
+    background: "rgba(255, 255, 255, 0.1)",
+    transform: "translateX(3px)",
+  },
+  "&.Mui-selected": {
+    background: "rgba(255, 255, 255, 0.15)",
+  },
+}));
 
 export const Sidebar = ({ open, onClose }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [activeMenu, setActiveMenu] = useState(null);
+  const [selectedItem, setSelectedItem] = useState("Tableau de bord");
 
   const toggleMenu = (menu) => {
     setActiveMenu(activeMenu === menu ? null : menu);
   };
 
+  const handleItemClick = (text) => {
+    setSelectedItem(text);
+    if (isMobile) onClose();
+  };
+
   const menuItems = [
     {
       text: "Tableau de bord",
-      icon: <DashboardIcon />,
-      path: "/dashboard",
+      icon: <DashboardIcon sx={{ color: "#6fd1ff" }} />,
+      path: "/",
       subItems: [
-        { text: "Statistiques", icon: <BarChartIcon />, path: "/statistic" },
-        { text: "Rapports", icon: <ListAltIcon />, path: "/reports" },
-      ],
-    },
-    {
-      text: "Clients",
-      icon: <PeopleIcon />,
-      path: "/customers",
-      subItems: [
-        { text: "Gestion", icon: <PeopleIcon />, path: "/customers/manage" },
         {
-          text: "Analytique",
-          icon: <BarChartIcon />,
-          path: "/customers/analytics",
+          text: "Statistiques",
+          icon: <BarChartIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
+          path: "/statistics",
+        },
+        {
+          text: "Rapports",
+          icon: (
+            <AssessmentIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />
+          ),
+          path: "/reports",
         },
       ],
     },
     {
-      text: "Inventaire",
-      icon: <InventoryIcon />,
-      path: "/inventory",
+      text: "Clients",
+      icon: <PeopleIcon sx={{ color: "#81c784" }} />,
+      path: "/clients",
+    },
+    {
+      text: "Fournisseurs",
+      icon: <StoreIcon sx={{ color: "#ffb74d" }} />,
+      path: "/fournisseurs",
+    },
+    {
+      text: "Commandes",
+      icon: <ReceiptIcon sx={{ color: "#ba68c8" }} />,
+      path: "/commandes",
+    },
+    {
+      text: "Factures",
+      icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
+      path: "/factures",
+    },
+    {
+      text: "Stocks",
+      icon: <InventoryIcon sx={{ color: "#9575cd" }} />,
+      path: "/stocks",
+    },
+    {
+      text: "Pièces",
+      icon: <BuildIcon sx={{ color: "#7986cb" }} />,
+      path: "/pieces",
+    },
+    {
+      text: "Catégories",
+      icon: <CategoryIcon sx={{ color: "#4db6ac" }} />,
+      path: "/categorie",
+    },
+    {
+      text: "Véhicules",
+      icon: <CarIcon sx={{ color: "#ef9a9a" }} />,
+      path: "/vehicules",
+    },
+    {
+      text: "Pièces Véhicule",
+      icon: <BuildIcon sx={{ color: "#7986cb" }} />,
+      path: "/piece-vehicule",
+    },
+    {
+      text: "Intégrations",
+      icon: <SyncIcon sx={{ color: "#90a4ae" }} />,
+      path: "/integrations",
+    },
+    {
+      text: "Paramètres",
+      icon: <SettingsIcon sx={{ color: "#cfd8dc" }} />,
+      path: "/setting",
       subItems: [
-        { text: "Stock", icon: <InventoryIcon />, path: "/inventory/stock" },
-        { text: "Commandes", icon: <ListAltIcon />, path: "/inventory/orders" },
+        {
+          text: "Sécurité",
+          icon: <SecurityIcon sx={{ color: "#cfd8dc", fontSize: "1.2rem" }} />,
+          path: "/settings",
+        },
       ],
     },
-    { text: "Intégrations", icon: <SyncIcon />, path: "/integrations" },
-    { text: "Paramètres", icon: <SettingsIcon />, path: "/setting" },
     {
       text: "Compte",
-      icon: <AccountIcon />,
+      icon: <AccountIcon sx={{ color: "#f48fb1" }} />,
       path: "/account",
       subItems: [
-        { text: "Profil", icon: <AccountIcon />, path: "/account/profile" },
-        { text: "Sécurité", icon: <SettingsIcon />, path: "/account/security" },
+        {
+          text: "Profil",
+          icon: <AccountIcon sx={{ color: "#f48fb1", fontSize: "1.2rem" }} />,
+          path: "/account",
+        },
       ],
     },
-    { text: "Erreurs", icon: <ErrorIcon />, path: "/errors" },
-    { text: "FeedBack", icon: <FeedbackIcon />, path: "/feedback" },
+    {
+      text: "Feedback",
+      icon: <FeedbackIcon sx={{ color: "#fff176" }} />,
+      path: "/feedback",
+    },
   ];
 
   return (
-    <Drawer
+    <PremiumDrawer
       variant={isMobile ? "temporary" : "persistent"}
       open={open}
       onClose={onClose}
       sx={{
-        width: open ? 30 : 0, // Correction ici (2 n'était pas bon)
-        transition: theme.transitions.create("width", {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.enteringScreen,
-        }),
+        width: 220,
+        flexShrink: 0,
+        "& .MuiDrawer-paper": {
+          width: 285,
+          boxSizing: "border-box",
+          backgroundColor: theme.palette.background.default,
+          transition: theme.transitions.create("width", {
+            easing: theme.transitions.easing.sharp,
+            duration: open
+              ? theme.transitions.duration.enteringScreen
+              : theme.transitions.duration.leavingScreen,
+          }),
+          overflowX: "hidden",
+          "&::-webkit-scrollbar": {
+            display: "none",
+          },
+        },
       }}
     >
       <Box
@@ -115,49 +233,95 @@ export const Sidebar = ({ open, onClose }) => {
           alignItems: "center",
           justifyContent: "space-between",
           p: 3,
+          background: "rgba(255,255,255,0.1)",
+          borderBottom: "1px solid rgba(255,255,255,0.2)",
         }}
       >
-        <Box>
-          <Typography className="sidebar-header" variant="h6" noWrap>
-            AutoPartsPro
-          </Typography>
-          <Typography
-            className="sidebar-subtitle"
-            variant="subtitle2"
-            sx={{ mt: 0.5, color: "rgba(32, 29, 29, 0.7)", fontSize: 16.8 }}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Avatar
+            sx={{
+              bgcolor: "#1931be",
+              width: 50,
+              height: 50,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            }}
           >
-            Gestion des pièces de véhicules
-          </Typography>
-        </Box>
-       {/* <IconButton onClick={onClose} sx={{ color: "inherit" }}>
-          {isMobile ? <ChevronLeft /> : <Menu />}
-        </IconButton>*/}
-      </Box>
-
-      <Divider sx={{ my: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
-
-      <List>
-        {menuItems.map((item) => (
-          <React.Fragment key={item.text}>
-            <ListItemButton
-              onClick={() => (item.subItems ? toggleMenu(item.text) : null)}
-              component={!item.subItems ? Link : "div"}
-              to={!item.subItems ? item.path : undefined}
+            AP
+          </Avatar>
+          <Box>
+            <Typography
+              variant="h6"
               sx={{
-                mx: 1,
-                borderRadius: 1,
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                  transform: "translateX(8px)",
-                },
+                fontWeight: 700,
+                background: "linear-gradient(45deg, #7c8dee, #8a5fb6)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
               }}
             >
-              <ListItemIcon sx={{ color: "inherit" }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              AutoPartsPro
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "rgba(255,255,255,0.8)",
+                fontSize: "0.7rem",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Gestion des pièces
+            </Typography>
+          </Box>
+        </Box>
+        {isMobile && (
+          <IconButton
+            onClick={onClose}
+            sx={{
+              color: "rgba(255,255,255,0.9)",
+              "&:hover": {
+                color: "#fff",
+                background: "rgba(255,255,255,0.2)",
+              },
+            }}
+          >
+            <ChevronLeft />
+          </IconButton>
+        )}
+      </Box>
+
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", my: 1 }} />
+
+      <List sx={{ p: 1 }}>
+        {menuItems.map((item) => (
+          <React.Fragment key={item.text}>
+            <PremiumListItem
+              selected={selectedItem === item.text}
+              onClick={() => {
+                if (item.subItems) {
+                  toggleMenu(item.text);
+                } else {
+                  handleItemClick(item.text);
+                }
+              }}
+              component={!item.subItems ? Link : "div"}
+              to={!item.subItems ? item.path : undefined}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                primaryTypographyProps={{
+                  fontSize: "0.95rem",
+                  fontWeight: selectedItem === item.text ? 600 : 400,
+                  color: "rgba(255,255,255,0.9)",
+                }}
+              />
               {item.subItems &&
-                (activeMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
-            </ListItemButton>
+                (activeMenu === item.text ? (
+                  <ExpandLess sx={{ color: "rgba(255,255,255,0.9)" }} />
+                ) : (
+                  <ExpandMore sx={{ color: "rgba(255,255,255,0.9)" }} />
+                ))}
+            </PremiumListItem>
 
             {item.subItems && (
               <Collapse
@@ -167,25 +331,22 @@ export const Sidebar = ({ open, onClose }) => {
               >
                 <List component="div" disablePadding>
                   {item.subItems.map((subItem) => (
-                    <ListItemButton
+                    <PremiumSubListItem
                       key={subItem.text}
+                      selected={selectedItem === subItem.text}
                       component={Link}
                       to={subItem.path}
-                      sx={{
-                        pl: 4,
-                        mx: 1,
-                        borderRadius: 1,
-                        transition: "all 0.3s ease",
-                        "&:hover": {
-                          backgroundColor: "rgba(255, 255, 255, 0.05)",
-                        },
-                      }}
+                      onClick={() => handleItemClick(subItem.text)}
                     >
-                      <ListItemIcon sx={{ color: "inherit" }}>
-                        {subItem.icon}
-                      </ListItemIcon>
-                      <ListItemText primary={subItem.text} />
-                    </ListItemButton>
+                      <ListItemIcon>{subItem.icon}</ListItemIcon>
+                      <ListItemText
+                        primary={subItem.text}
+                        primaryTypographyProps={{
+                          fontSize: "0.85rem",
+                          color: "rgba(255,255,255,0.9)",
+                        }}
+                      />
+                    </PremiumSubListItem>
                   ))}
                 </List>
               </Collapse>
@@ -194,25 +355,31 @@ export const Sidebar = ({ open, onClose }) => {
         ))}
       </List>
 
-      <Divider sx={{ my: 2, backgroundColor: "rgba(255,255,255,0.1)" }} />
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", my: 1 }} />
 
-      <Box sx={{ p: 3 }}>
-        <Typography variant="subtitle2" gutterBottom>
-          Besoin de plus de fonctionnalités ?
-        </Typography>
+      <Box sx={{ p: 2, textAlign: "center" }}>
+        <Chip
+          label="Version Pro"
+          color="primary"
+          size="small"
+          sx={{
+            background: "linear-gradient(45deg, #7c8dee, #8a5fb6)",
+            color: "#fff",
+            fontWeight: 600,
+            mb: 1,
+          }}
+        />
         <Typography
-          variant="body2"
-          sx={{ mb: 2, color: "rgba(255,255,255,0.7)" }}
+          variant="caption"
+          sx={{
+            color: "rgba(255,255,255,0.8)",
+            fontSize: "0.7rem",
+            display: "block",
+          }}
         >
-          Découvrez notre solution Pro.
+          © 2025 AutoPartsPro
         </Typography>
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <StarIcon color="primary" />
-          <Typography variant="body2" sx={{ ml: 1 }}>
-            Version Premium
-          </Typography>
-        </Box>
       </Box>
-    </Drawer>
+    </PremiumDrawer>
   );
 };

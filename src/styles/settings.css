@@ -1,0 +1,151 @@
+/* Variables CSS */
+:root {
+  --primary-color: #1976d2;
+  --secondary-color: #dc004e;
+  --background-light: #ffffff;
+  --background-dark: #121212;
+  --text-primary: rgba(0, 0, 0, 0.87);
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --border-radius: 12px;
+  --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Conteneur principal */
+.settings-container {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Titre */
+.settings-title {
+  font-weight: 700;
+  background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+/* Onglets */
+.settings-tabs {
+  margin-bottom: 2rem;
+}
+
+.settings-tabs .MuiTabs-indicator {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+}
+
+/* Cartes de paramètres */
+.settings-card {
+  height: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: var(--transition);
+}
+
+.settings-card:hover {
+  transform: translateY(-5px);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.settings-icon {
+  color: var(--primary-color);
+  font-size: 1.5rem !important;
+}
+
+.settings-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Composants de formulaire */
+.settings-switch .MuiSwitch-track {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.settings-switch .MuiSwitch-switchBase.Mui-checked {
+  color: var(--primary-color);
+}
+
+.settings-radio-group .MuiFormLabel-root {
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.settings-radio .MuiSvgIcon-root {
+  font-size: 1.2rem;
+}
+
+.settings-select .MuiOutlinedInput-root {
+  border-radius: var(--border-radius);
+}
+
+/* Bouton de sauvegarde */
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+.settings-save-button {
+  background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+  border-radius: 50px;
+  padding: 10px 24px;
+  font-weight: 600;
+  text-transform: none;
+  box-shadow: var(--box-shadow);
+  transition: var(--transition);
+}
+
+.settings-save-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Mode sombre */
+[data-theme="dark"] .settings-card {
+  background-color: var(--background-dark);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .settings-card-header {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .settings-title,
+[data-theme="dark"] .settings-card h6 {
+  color: white;
+}
+
+[data-theme="dark"] .settings-card p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .settings-card {
+    padding: 1.5rem;
+  }
+  
+  .settings-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

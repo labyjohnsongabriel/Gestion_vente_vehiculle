@@ -13,7 +13,7 @@ import { BudgetCard } from "../components/cards/BudgetCard";
 import { CustomersCard } from "../components/cards/CustomersCard";
 import { ProgressCard } from "../components/cards/ProgressCard";
 import { ProfitCard } from "../components/cards/ProfitCard";
-import { SalesChart } from "../components/charts/SalesChart";
+import  SalesChart  from "../components/charts/SalesChart";
 import { TrafficChart } from "../components/charts/TrafficChart";
 import { RecentOrders } from "../components/tables/RecentOrders";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
@@ -22,7 +22,7 @@ import { useCustomTheme } from "../components/context/ThemeContext";
 import Footer  from "../components/Recherche/footer"; 
 import "../styles/dashboard.css";
 
-export const Dashboard = () => {
+ const Dashboard = () => {
   const theme = useTheme();
   const { toggleTheme, mode } = useCustomTheme();
 
@@ -38,6 +38,7 @@ export const Dashboard = () => {
           textAlign: "left",
           marginBottom: "20px",
         }}
+        
       >
         Tableau de bord
       </Typography>
@@ -155,3 +156,4 @@ export const Dashboard = () => {
     </Container>
   );
 };
+export default Dashboard;

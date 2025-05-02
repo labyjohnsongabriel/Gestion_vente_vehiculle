@@ -1,32 +1,76 @@
-const db = require("../config/db");
+const db = require("../config/db"); // Connexion MySQL avec Promesse
 
 const Client = {
-  getAll: (callback) => {
-    db.query("SELECT * FROM clients", callback);
+  // 🔍 Obtenir tous les clients
+  getAll: async () => {
+    try {
+      const [rows] = await db.query("SELECT * FROM clients");
+      return rows;
+    } catch (err) {
+      console.error("[Client.getAll] Erreur:", err.message);
+      throw new Error("Erreur lors de la récupération des clients");
+    }
   },
 
-  getById: (id, callback) => {
-    db.query("SELECT * FROM clients WHERE id = ?", [id], callback);
+  // 🔍 Obtenir un client par ID
+  getById: async (id) => {
+    try {
+      const [rows] = await db.query("SELECT * FROM clients WHERE id = ?", [id]);
+      return rows[0] || null;
+    } catch (err) {
+      console.error("[Client.getById] Erreur:", err.message);
+      throw new Error("Erreur lors de la récupération du client");
+    }
   },
 
-  create: (data, callback) => {
-    const { name, email, phone, address } = data;
-    db.query("INSERT INTO clients (name, email, phone, address) VALUES (?, ?, ?, ?)",
-      [name, email, phone, address],
-      callback
-    );
+  // ➕ Créer un nouveau client
+  create: async ({ name, email, phone, address }) => {
+    try {
+      const [result] = await db.query(
+        "INSERT INTO clients (name, email, phone, address) VALUES (?, ?, ?, ?)",
+        [name, email, phone, address]
+      );
+      return { id: result.insertId, name, email, phone, address };
+    } catch (err) {
+      console.error("[Client.create] Erreur:", err.message);
+      throw new Error("Erreur lors de la création du client");
+    }
   },
 
-  update: (id, data, callback) => {
-    const { name, email, phone, address } = data;
-    db.query("UPDATE clients SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?",
-      [name, email, phone, address, id],
-      callback
-    );
+  // 🔁 Mettre à jour un client
+  update: async (id, { name, email, phone, address }) => {
+    try {
+      const [result] = await db.query(
+        "UPDATE clients SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?",
+        [name, email, phone, address, id]
+      );
+      return result;
+    } catch (err) {
+      console.error("[Client.update] Erreur:", err.message);
+      throw new Error("Erreur lors de la mise à jour du client");
+    }
   },
 
-  delete: (id, callback) => {
-    db.query("DELETE FROM clients WHERE id = ?", [id], callback);
+  // ❌ Supprimer un client
+  delete: async (id) => {
+    try {
+      const [result] = await db.query("DELETE FROM clients WHERE id = ?", [id]);
+      return result;
+    } catch (err) {
+      console.error("[Client.delete] Erreur:", err.message);
+      throw new Error("Erreur lors de la suppression du client");
+    }
+  },
+
+  // 📊 Compter le nombre de clients
+  count: async () => {
+    try {
+      const [rows] = await db.query("SELECT COUNT(*) AS count FROM clients");
+      return rows[0].count;
+    } catch (err) {
+      console.error("[Client.count] Erreur:", err.message);
+      throw new Error("Erreur lors du comptage des clients");
+    }
   },
 };
 

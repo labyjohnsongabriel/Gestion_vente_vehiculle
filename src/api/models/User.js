@@ -1,49 +1,72 @@
-// models/adminUserModel.js
-const db = require("../config/db");
-const bcrypt = require("bcryptjs"); // Pour sécuriser les mots de passe
+// models/User.js
+const db = require("../config/db"); // Connexion avec la version promesse de mysql2
 
-const AdminUser = {
-  // Ajouter un nouvel utilisateur (admin)
-  create: (userData, callback) => {
-    const { nom, email, password } = userData;
-    const salt = bcrypt.genSaltSync(10);
-    const hashedPassword = bcrypt.hashSync(password, salt); // Crypter le mot de passe
-
-    const query =
-      "INSERT INTO admin_users (nom, email, password) VALUES (?, ?, ?)";
-    db.query(query, [nom, email, hashedPassword], (err, result) => {
-      if (err) {
-        console.error("❌ Erreur lors de l'ajout de l'utilisateur:", err);
-        return callback(err, null);
-      }
-      callback(null, result);
-    });
+const User = {
+  // Trouver un utilisateur par email
+  findByEmail: async (email) => {
+    try {
+      const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+        email,
+      ]);
+      return rows[0]; // Retourne le premier utilisateur trouvé
+    } catch (error) {
+      throw new Error("Erreur lors de la recherche de l'utilisateur");
+    }
   },
 
-  // Vérifier le login de l'utilisateur
-  login: (email, password, callback) => {
-    const query = "SELECT * FROM admin_users WHERE email = ?";
-    db.query(query, [email], (err, result) => {
-      if (err) {
-        console.error(
-          "❌ Erreur lors de la récupération de l'utilisateur:",
-          err
-        );
-        return callback(err, null);
-      }
-      if (result.length === 0) {
-        return callback(null, null); // Aucun utilisateur trouvé
-      }
+  // Trouver un utilisateur par ID
+  findById: async (id) => {
+    try {
+      const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [id]);
+      return rows[0]; // Retourne l'utilisateur correspondant
+    } catch (error) {
+      throw new Error("Erreur lors de la récupération de l'utilisateur");
+    }
+  },
 
-      // Vérifier le mot de passe
-      const user = result[0];
-      const isPasswordValid = bcrypt.compareSync(password, user.password);
-      if (!isPasswordValid) {
-        return callback(null, null); // Mot de passe incorrect
-      }
-      callback(null, user); // Utilisateur trouvé et mot de passe valide
-    });
+  // Créer un utilisateur
+  create: async ({ firstName, lastName, email, password, role }) => {
+    try {
+      const [result] = await db.query(
+        "INSERT INTO users (firstName, lastName, email, password, role) VALUES (?, ?, ?, ?, ?)",
+        [firstName, lastName, email, password, role]
+      );
+      return {
+        id: result.insertId,
+        firstName,
+        lastName,
+        email,
+        role,
+      };
+    } catch (error) {
+      throw new Error("Erreur lors de la création de l'utilisateur");
+    }
+  },
+
+  // Comparer les mots de passe
+  comparePasswords: async (inputPassword, storedPassword) => {
+    // Logique pour comparer les mots de passe (par exemple, bcrypt.compare)
+    return inputPassword === storedPassword; // Remplacez par votre logique de comparaison
+  },
+
+  // Mettre à jour un utilisateur
+  update: async (id, { firstName, lastName, email, password, role }) => {
+    try {
+      const [result] = await db.query(
+        "UPDATE users SET firstName = ?, lastName = ?, email = ?, password = ?, role = ? WHERE id = ?",
+        [firstName, lastName, email, password, role, id]
+      );
+      return {
+        id,
+        firstName,
+        lastName,
+        email,
+        role,
+      };
+    } catch (error) {
+      throw new Error("Erreur lors de la mise à jour de l'utilisateur");
+    }
   },
 };
 
-module.exports = AdminUser;
+module.exports = User;

@@ -1,27 +1,41 @@
-const mysql = require("mysql2");
+const mysql = require("mysql2/promise");
+const dotenv = require("dotenv");
 
-// Connexion MySQL avec support de plusieurs requêtes
-const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "gestion_pieces",
-  multipleStatements: true // 💥 Important pour exécuter plusieurs requêtes en une fois
+dotenv.config();
+
+// Pool de connexions MySQL
+const connection = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "gestion_pieces",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  multipleStatements: true,
 });
 
-// Connexion
-connection.connect((err) => {
-  if (err) {
-    console.error("❌ Erreur de connexion à la base de données :", err);
-    return;
+// Fonction pour tester la connexion
+async function testConnection() {
+  try {
+    const conn = await connection.getConnection();
+    console.log("✅ Connexion à la base de données réussie !");
+    conn.release();
+  } catch (err) {
+    console.error("❌ Erreur de connexion à la base de données :", err.message);
+    process.exit(1); // Arrêtez le processus si la connexion échoue
   }
-  console.log("✅ Connexion MySQL réussie.");
+}
 
-  // Création des tables
-  const createTables = `
+testConnection();
+
+// Fonction de création des tables
+async function createTables() {
+  const createTablesQuery = `
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(100),
+      firstName VARCHAR(100),
+      lastName VARCHAR(100),
       email VARCHAR(100) UNIQUE,
       password VARCHAR(255),
       role ENUM('admin', 'employee') DEFAULT 'employee',
@@ -114,16 +128,18 @@ connection.connect((err) => {
       FOREIGN KEY (piece_id) REFERENCES pieces(id),
       FOREIGN KEY (vehicule_id) REFERENCES vehicules(id)
     );
+
+   
   `;
 
-  // Exécution des requêtes
-  connection.query(createTables, (err) => {
-    if (err) {
-      console.error("❌ Erreur lors de la création des tables :", err);
-    } else {
-      console.log("✅ Toutes les tables ont été créées avec succès.");
-    }
-  });
-});
+  try {
+    await connection.query(createTablesQuery);
+    console.log("✅ Toutes les tables ont été créées avec succès.");
+  } catch (err) {
+    console.error("❌ Erreur lors de la création des tables :", err);
+  }
+}
+
+createTables();
 
 module.exports = connection;
