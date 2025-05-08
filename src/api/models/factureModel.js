@@ -45,25 +45,23 @@ const Facture = {
   },
 
   // Fonction pour récupérer les lignes de commande associées à une commande
-  getLignesCommande: async (commandeId) => {
-    const sql = `
-      SELECT ligne_commandes.*, produits.nom as description 
-      FROM ligne_commandes 
-      JOIN produits ON ligne_commandes.produit_id = produits.id
-      WHERE commande_id = ?
-    `;
+// Fonction pour récupérer les lignes de commande associées à une commande
+getLignesCommande: async (commandeId) => {
+  const sql = `
+    SELECT details_commande.*, pieces.name AS description
+    FROM details_commande
+    JOIN pieces ON details_commande.piece_id = pieces.id
+    WHERE commande_id = ?
+  `;
 
-    try {
-      const [rows] = await db.query(sql, [commandeId]);
-      return rows;
-    } catch (error) {
-      console.error(
-        "Erreur lors de la récupération des lignes de commande:",
-        error
-      );
-      return [];
-    }
-  },
+  try {
+    const [rows] = await db.query(sql, [commandeId]);
+    return rows;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des lignes de commande:", error);
+    return [];
+  }
+},
 };
 
 module.exports = Facture;

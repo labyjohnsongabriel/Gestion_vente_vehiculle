@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
-  // Vérification automatique du token lors du chargement
+  // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
     const checkAuth = async () => {
       if (token) {
@@ -20,28 +20,27 @@ export const AuthProvider = ({ children }) => {
               Authorization: `Bearer ${token}`,
             },
           });
-
-          const data = await res.json();
-
-          if (res.ok) {
-            setUser(data);
-          } else {
-            logout();
+  
+          if (!res.ok) {
+            throw new Error("Problème de récupération du profil");
           }
+  
+          const data = await res.json();
+          setUser(data);
         } catch (err) {
+          console.error("Erreur d'authentification:", err);
           logout();
         }
       }
       setLoading(false);
     };
-
+  
     checkAuth();
   }, [token]);
-
   // Fonction d'inscription
   const register = async (userData) => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
+      const res = await fetch("http://localhost:5000/api/users/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

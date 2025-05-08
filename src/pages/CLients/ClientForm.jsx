@@ -23,6 +23,8 @@ import Swal from "sweetalert2";
 import { createClient, updateClient } from "../../Api2/clientAPI";
 
 
+
+
 // Composants stylisés premium
 const PremiumDialog = styled(Dialog)(({ theme }) => ({
   "& .MuiPaper-root": {
@@ -66,6 +68,7 @@ const ClientForm = ({ open, onClose, refreshClients, clientToEdit }) => {
     address: "",
     status: "active",
   });
+  
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -92,14 +95,6 @@ const ClientForm = ({ open, onClose, refreshClients, clientToEdit }) => {
     setIsSuccess(false);
   }, [clientToEdit, open]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
-
   const validateForm = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = "Le nom est requis";
@@ -114,6 +109,35 @@ const ClientForm = ({ open, onClose, refreshClients, clientToEdit }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+  
+    let filteredValue = value;
+  
+    if (name === "name") {
+      // 1. Supprimer caractères non alphabétiques sauf espace
+      filteredValue = value.replace(/[^a-zA-ZÀ-ÿ\s]/g, "");
+  
+      // 2. Seulement si on a tapé un espace ou terminé un mot, on formate
+      const endsWithSpace = filteredValue.endsWith(" ");
+  
+      if (!endsWithSpace) {
+        // On formate seulement les mots quand on n'est pas en train de taper un espace
+        filteredValue = filteredValue
+          .split(" ")
+          .map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          )
+          .join(" ");
+      }
+    }
+  
+    setFormData((prev) => ({
+      ...prev,
+      [name]: filteredValue,
+    }));
+  };
+  
   const handleSave = async () => {
     if (!validateForm()) return;
 
@@ -236,9 +260,11 @@ const ClientForm = ({ open, onClose, refreshClients, clientToEdit }) => {
                 </Box>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  
                   <TextField
                     label="Nom complet*"
                     name="name"
+                    type="text"
                     fullWidth
                     value={formData.name}
                     onChange={handleChange}
@@ -267,12 +293,14 @@ const ClientForm = ({ open, onClose, refreshClients, clientToEdit }) => {
                   <TextField
                     label="Téléphone*"
                     name="phone"
+                    type="number"
                     fullWidth
                     value={formData.phone}
                     onChange={handleChange}
                     error={!!errors.phone}
                     helperText={errors.phone}
                     variant="outlined"
+                    inputProps={{ maxLength: 10 }} // ✅ Bloque à 10 chiffres
                     InputProps={{
                       sx: { borderRadius: "12px" },
                     }}

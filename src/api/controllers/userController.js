@@ -1,4 +1,4 @@
-const User = require("../models/User"); // Assurez-vous que le chemin est correct
+            const User = require("../models/User"); // Assurez-vous que le chemin est correct
 const bcrypt = require("bcryptjs");
 
 exports.updateProfile = async (req, res) => {
