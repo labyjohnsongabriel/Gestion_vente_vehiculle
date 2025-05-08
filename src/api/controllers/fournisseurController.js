@@ -37,7 +37,7 @@ exports.getFournisseurById = async (req, res) => {
 
 // ✅ Créer un nouveau fournisseur
 exports.createFournisseur = async (req, res) => {
-  const { nom, adresse, telephone, email } = req.body;
+  const { nom, adresse, telephone, email } = req.body || {};
 
   if (!nom || !email) {
     return res.status(400).json({ error: "Le nom et l'email sont requis." });
@@ -53,6 +53,7 @@ exports.createFournisseur = async (req, res) => {
       .json({ error: "Erreur serveur lors de la création du fournisseur." });
   }
 };
+
 
 // ✅ Mettre à jour un fournisseur
 exports.updateFournisseur = async (req, res) => {

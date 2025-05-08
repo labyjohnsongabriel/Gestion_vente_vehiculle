@@ -34,11 +34,28 @@ import {
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import CategoryForm from "./CategoryForm";
+import { useNavigate } from "react-router-dom"; // Ajout de l'import manquant
 
-import axios from "axios";
+import axios from "../../api/axios"; // Assurez-vous que le chemin est correct
 import "../../styles/Categorie.css";
 
 const API_URL = "http://localhost:5000/api/categories";
+
+// Fonction d'aide pour récupérer le token depuis le localStorage
+const getAuthToken = () => {
+  return localStorage.getItem("token");
+};
+
+// Configuration d'axios avec les headers d'autorisation
+const axiosWithAuth = () => {
+  const token = getAuthToken();
+  return axios.create({
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+};
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
@@ -88,16 +105,71 @@ const CategoryList = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [tokenError, setTokenError] = useState(false);
+  const navigate = useNavigate(); // Hook pour la navigation
+
+  // Configuration des intercepteurs axios
+  useEffect(() => {
+    const requestInterceptor = axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    navigate("/login"); // Utilisation de navigate au lieu de window.location
+    Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
+  };
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
-      const response = await axios.get(API_URL);
+
+      // Utilisation de axiosWithAuth pour une gestion cohérente de l'authentification
+      const authAxios = axiosWithAuth();
+      const response = await authAxios.get(API_URL);
       setCategories(response.data);
     } catch (error) {
       console.error("Erreur lors du chargement des catégories:", error);
-      Swal.fire("Erreur", "Impossible de charger les catégories", "error");
+
+      if (
+        error.response &&
+        (error.response.status === 401 || error.response.status === 403)
+      ) {
+        setTokenError(true);
+        Swal.fire({
+          title: "Erreur d'authentification",
+          text: "Votre session a expiré. Veuillez vous reconnecter.",
+          icon: "error",
+          confirmButtonText: "Se reconnecter",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            navigate("/login"); // Utilisation de navigate au lieu de window.location
+          }
+        });
+      } else {
+        Swal.fire("Erreur", "Impossible de charger les catégories", "error");
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -105,6 +177,23 @@ const CategoryList = () => {
   };
 
   useEffect(() => {
+    // Vérifier si un token existe au chargement
+    const token = getAuthToken();
+    if (!token) {
+      setTokenError(true);
+      Swal.fire({
+        title: "Non authentifié",
+        text: "Veuillez vous connecter pour accéder à cette ressource",
+        icon: "warning",
+        confirmButtonText: "Se connecter",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigate("/login"); // Utilisation de navigate au lieu de window.location
+        }
+      });
+      return;
+    }
+
     fetchCategories();
   }, []);
 
@@ -114,6 +203,16 @@ const CategoryList = () => {
   };
 
   const handleDelete = async (id) => {
+    const token = getAuthToken();
+    if (!token) {
+      Swal.fire(
+        "Erreur",
+        "Vous devez être connecté pour effectuer cette action",
+        "error"
+      );
+      return;
+    }
+
     Swal.fire({
       title: "Confirmer la suppression",
       html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer cette catégorie? <br/><small>Cette action est irréversible.</small></div>`,
@@ -137,7 +236,8 @@ const CategoryList = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_URL}/${id}`);
+          const authAxios = axiosWithAuth();
+          await authAxios.delete(`${API_URL}/${id}`);
           fetchCategories();
           Swal.fire({
             title: "Supprimé!",
@@ -150,13 +250,35 @@ const CategoryList = () => {
             color: "white",
           });
         } catch (error) {
-          Swal.fire("Erreur", "La suppression a échoué.", "error");
+          if (
+            error.response &&
+            (error.response.status === 401 || error.response.status === 403)
+          ) {
+            Swal.fire(
+              "Erreur d'authentification",
+              "Votre session a expiré",
+              "error"
+            );
+            navigate("/login"); // Utilisation de navigate au lieu de window.location
+          } else {
+            Swal.fire("Erreur", "La suppression a échoué.", "error");
+          }
         }
       }
     });
   };
 
   const handleAddCategory = () => {
+    const token = getAuthToken();
+    if (!token) {
+      Swal.fire(
+        "Erreur",
+        "Vous devez être connecté pour effectuer cette action",
+        "error"
+      );
+      return;
+    }
+
     setCategoryToEdit(null);
     setOpenForm(true);
   };
@@ -182,6 +304,34 @@ const CategoryList = () => {
   const emptyRows =
     rowsPerPage -
     Math.min(rowsPerPage, filteredCategories.length - page * rowsPerPage);
+
+  // Si erreur d'authentification, afficher un message approprié
+  if (tokenError) {
+    return (
+      <Box sx={{ textAlign: "center", p: 5 }}>
+        <Category sx={{ fontSize: 80, color: "text.disabled", mb: 2 }} />
+        <Typography variant="h5" color="text.secondary" gutterBottom>
+          Accès non autorisé
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Vous devez être connecté pour accéder à cette page
+        </Typography>
+        <Button
+          variant="contained"
+          onClick={() => navigate("/login")}
+          sx={{
+            background: "linear-gradient(90deg, #7c2cb9 0%, #2828b2 100%)",
+            color: "white",
+            borderRadius: "50px",
+            px: 4,
+            py: 1.5,
+          }}
+        >
+          Se connecter
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Fade in timeout={600}>
@@ -274,7 +424,6 @@ const CategoryList = () => {
               </Tooltip>
               <Tooltip title="Actualiser" arrow>
                 <span>
-                  {" "}
                   {/* Utilisation de <span> pour ne pas désactiver l'élément Tooltip */}
                   <IconButton
                     onClick={handleRefresh}
@@ -330,7 +479,7 @@ const CategoryList = () => {
                   >
                     Description
                   </TableCell>
-                  <TableCell
+                  {/*<TableCell
                     sx={{
                       color: "white",
                       fontWeight: 600,
@@ -338,15 +487,6 @@ const CategoryList = () => {
                     }}
                   >
                     Créé le
-                  </TableCell>
-             {    /* <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Statut
                   </TableCell>*/}
                   <TableCell
                     align="right"
@@ -469,7 +609,7 @@ const CategoryList = () => {
                               {category.description}
                             </Typography>
                           </TableCell>
-                          <TableCell
+{          /*                <TableCell
                             sx={{
                               color: "#3a4b6d",
                             }}
@@ -480,33 +620,7 @@ const CategoryList = () => {
                               ).toLocaleDateString()}
                             </Typography>
                           </TableCell>
-                  {      /*  <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Chip
-                              label={
-                                category.status === "active"
-                                  ? "Active"
-                                  : "Inactive"
-                              }
-                              color={
-                                category.status === "active"
-                                  ? "success"
-                                  : "default"
-                              }
-                              size="small"
-                              sx={{
-                                borderRadius: 1,
-                                fontWeight: 600,
-                                textTransform: "capitalize",
-                                minWidth: 80,
-                                justifyContent: "center",
-                              }}
-                            />
-                          </TableCell>*/}
-                          <TableCell align="right">
+ */}                         <TableCell align="right">
                             <Box
                               sx={{
                                 display: "flex",

@@ -2,6 +2,12 @@ import axios from "axios";
 
 const API_URL = "http://localhost:5000/api/categories"; // Changer l'URL ici
 
+
+const getAuthHeaders = () => ({
+  headers: {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  },
+});
 // Fonction pour récupérer toutes les catégories
 export const fetchCategories = async () => {
   try {

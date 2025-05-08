@@ -29,26 +29,24 @@ import {
   Add,
   FilterList,
   Refresh,
-  Category,
+  Receipt,
+  PictureAsPdf,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
-import CategoryForm from "./FactureForm";
-
+import FactureForm from "./FactureForm";
 import axios from "axios";
-import "../../styles/Categorie.css";
 
-const API_URL = "http://localhost:5000/api/commandes";
+
+const API_URL = "http://localhost:5000/api/factures";
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
-    background:
-      "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
   },
   "&:hover": {
-    background:
-      "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
     transform: "scale(1.005)",
     boxShadow: theme.shadows[1],
     transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
@@ -80,24 +78,24 @@ const PremiumButton = styled(Button)(({ theme }) => ({
 }));
 
 const FactureList = () => {
-  const [categories, setCategories] = useState([]);
+  const [factures, setFactures] = useState([]);
   const [openForm, setOpenForm] = useState(false);
-  const [categoryToEdit, setCategoryToEdit] = useState(null);
+  const [factureToEdit, setFactureToEdit] = useState(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchCategories = async () => {
+  const fetchFactures = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
       const response = await axios.get(API_URL);
-      setCategories(response.data);
+      setFactures(response.data);
     } catch (error) {
-      console.error("Erreur lors du chargement des catégories:", error);
-      Swal.fire("Erreur", "Impossible de charger les catégories", "error");
+      console.error("Erreur lors du chargement des factures:", error);
+      Swal.fire("Erreur", "Impossible de charger les factures", "error");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -105,18 +103,18 @@ const FactureList = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
+    fetchFactures();
   }, []);
 
-  const handleEdit = (category) => {
-    setCategoryToEdit(category);
+  const handleEdit = (facture) => {
+    setFactureToEdit(facture);
     setOpenForm(true);
   };
 
   const handleDelete = async (id) => {
     Swal.fire({
       title: "Confirmer la suppression",
-      html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer cette catégorie? <br/><small>Cette action est irréversible.</small></div>`,
+      html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer cette facture? <br/><small>Cette action est irréversible.</small></div>`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ff4444",
@@ -138,10 +136,10 @@ const FactureList = () => {
       if (result.isConfirmed) {
         try {
           await axios.delete(`${API_URL}/${id}`);
-          fetchCategories();
+          fetchFactures();
           Swal.fire({
             title: "Supprimé!",
-            text: "La catégorie a été supprimée avec succès.",
+            text: "La facture a été supprimée avec succès.",
             icon: "success",
             timer: 1800,
             showConfirmButton: false,
@@ -155,15 +153,126 @@ const FactureList = () => {
       }
     });
   };
+const handleGeneratePDF = async (id) => {
+  try {
+    setLoading(true);
 
-  const handleAddCategory = () => {
-    setCategoryToEdit(null);
+    // Notification de début de génération
+    const toast = Swal.mixin({
+      toast: true,
+      position: "top-end",
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.addEventListener("mouseenter", Swal.stopTimer);
+        toast.addEventListener("mouseleave", Swal.resumeTimer);
+      },
+    });
+
+    toast.fire({
+      icon: "info",
+      title: "Génération du PDF en cours...",
+    });
+
+    // Appel API avec gestion du blob
+    const response = await axios.get(`${API_URL}/${id}/pdf`, {
+      responseType: "blob",
+      onDownloadProgress: (progressEvent) => {
+        // Optionnel: suivre la progression du téléchargement
+        console.log(
+          `Download progress: ${Math.round(
+            (progressEvent.loaded / progressEvent.total) * 100
+          )}%`
+        );
+      },
+    });
+
+    // Vérifier si la réponse est un PDF
+    if (
+      response.headers["content-type"] !== "application/pdf" &&
+      !response.headers["content-type"].includes("application/octet-stream")
+    ) {
+      throw new Error("Le serveur n'a pas retourné un fichier PDF valide");
+    }
+
+    // Créer un URL pour le fichier
+    const blob = new Blob([response.data], { type: "application/pdf" });
+    const url = window.URL.createObjectURL(blob);
+
+    // Option 1: Téléchargement automatique
+    const link = document.createElement("a");
+    link.href = url;
+    // Récupérer le nom du fichier depuis les headers si disponible
+    const contentDisposition = response.headers["content-disposition"];
+    let filename = `facture_${id}.pdf`;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode.removeChild(link);
+
+    // Option 2: Prévisualisation dans une nouvelle fenêtre (en commentaire)
+    // window.open(url, '_blank');
+
+    // Nettoyer l'URL créé
+    setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+
+    // Notification de succès
+    Swal.fire({
+      title: "PDF généré!",
+      text: "Le PDF de la facture a été téléchargé avec succès.",
+      icon: "success",
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      background: "#4caf50",
+      color: "white",
+    });
+  } catch (error) {
+    console.error("Erreur lors de la génération du PDF:", error);
+
+    // Message d'erreur personnalisé selon le type d'erreur
+    let errorMessage = "Impossible de générer le PDF";
+    if (error.response) {
+      // Erreur de réponse du serveur
+      if (error.response.status === 404) {
+        errorMessage = "Facture introuvable";
+      } else if (error.response.status === 500) {
+        errorMessage = "Erreur serveur lors de la génération du PDF";
+      } else {
+        errorMessage = `Erreur ${error.response.status}: ${
+          error.response.data.message || "Erreur inconnue"
+        }`;
+      }
+    } else if (error.request) {
+      // Pas de réponse du serveur
+      errorMessage = "Aucune réponse du serveur. Vérifiez votre connexion.";
+    }
+
+    Swal.fire({
+      title: "Erreur",
+      text: errorMessage,
+      icon: "error",
+      confirmButtonColor: "#3a4b6d",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+  const handleAddFacture = () => {
+    setFactureToEdit(null);
     setOpenForm(true);
   };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchCategories();
+    fetchFactures();
   };
 
   const handleSearch = (e) => {
@@ -171,8 +280,8 @@ const FactureList = () => {
     setPage(0);
   };
 
-  const filteredCategories = categories.filter((cat) =>
-    Object.values(cat).some(
+  const filteredFactures = factures.filter((facture) =>
+    Object.values(facture).some(
       (value) =>
         value &&
         value.toString().toLowerCase().includes(searchTerm.toLowerCase())
@@ -181,7 +290,7 @@ const FactureList = () => {
 
   const emptyRows =
     rowsPerPage -
-    Math.min(rowsPerPage, filteredCategories.length - page * rowsPerPage);
+    Math.min(rowsPerPage, filteredFactures.length - page * rowsPerPage);
 
   return (
     <Fade in timeout={600}>
@@ -211,7 +320,7 @@ const FactureList = () => {
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Category sx={{ fontSize: 40 }} />
+              <Receipt sx={{ fontSize: 40 }} />
               <Typography
                 variant="h4"
                 sx={{
@@ -289,12 +398,12 @@ const FactureList = () => {
 
               <PremiumButton
                 startIcon={<Add />}
-                onClick={handleAddCategory}
+                onClick={handleAddFacture}
                 sx={{
                   display: { xs: "none", sm: "flex" },
                 }}
               >
-                Nouvelle Catégorie
+                Nouvelle Facture
               </PremiumButton>
             </Box>
           </Box>
@@ -309,49 +418,24 @@ const FactureList = () => {
                       "linear-gradient(135deg, #3a4b6d 0%, #1a2a4a 100%)",
                   }}
                 >
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Nom
+                {  /*<TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Référence
+                  </TableCell>*/}
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Client
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Description
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Commande
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Créé le
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Date
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Statut
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Montant
                   </TableCell>
                   <TableCell
                     align="right"
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
+                    sx={{ color: "white", fontWeight: 600 }}
                   >
                     Actions
                   </TableCell>
@@ -361,7 +445,7 @@ const FactureList = () => {
                 {loading ? (
                   [...Array(rowsPerPage)].map((_, index) => (
                     <PremiumTableRow key={index}>
-                      {[...Array(5)].map((_, cellIndex) => (
+                      {[...Array(6)].map((_, cellIndex) => (
                         <TableCell key={cellIndex}>
                           <Skeleton
                             animation="wave"
@@ -372,11 +456,11 @@ const FactureList = () => {
                       ))}
                     </PremiumTableRow>
                   ))
-                ) : filteredCategories.length === 0 ? (
+                ) : filteredFactures.length === 0 ? (
                   <PremiumTableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                       <Box sx={{ textAlign: "center" }}>
-                        <Category
+                        <Receipt
                           sx={{
                             fontSize: 60,
                             color: "text.disabled",
@@ -389,30 +473,30 @@ const FactureList = () => {
                           color="text.secondary"
                           sx={{ mb: 1 }}
                         >
-                          Aucune catégorie trouvée
+                          Aucune facture trouvée
                         </Typography>
                         <Typography
                           variant="body2"
                           color="text.secondary"
                           sx={{ mb: 2 }}
                         >
-                          Essayez d'ajouter une nouvelle catégorie
+                          Essayez d'ajouter une nouvelle facture
                         </Typography>
                         <PremiumButton
-                          onClick={handleAddCategory}
+                          onClick={handleAddFacture}
                           startIcon={<Add />}
                         >
-                          Créer une catégorie
+                          Créer une facture
                         </PremiumButton>
                       </Box>
                     </TableCell>
                   </PremiumTableRow>
                 ) : (
-                  filteredCategories
+                  filteredFactures
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((category) => (
+                    .map((facture) => (
                       <Slide
-                        key={category.id}
+                        key={facture.id}
                         direction="up"
                         in
                         mountOnEnter
@@ -432,11 +516,10 @@ const FactureList = () => {
                             },
                           }}
                         >
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
+                        { /* <TableCell sx={{ color: "#3a4b6d", fontWeight: 500 }}>
+                            #{facture.id}
+                          </TableCell>*/}
+                          <TableCell sx={{ color: "#3a4b6d" }}>
                             <Box
                               sx={{
                                 display: "flex",
@@ -447,61 +530,24 @@ const FactureList = () => {
                               <Avatar
                                 sx={{ bgcolor: "#667eea", color: "white" }}
                               >
-                                {category.name?.charAt(0)}
+                                {facture.client_name?.charAt(0)}
                               </Avatar>
-                              <Typography
-                                fontWeight={600}
-                                sx={{ color: "#3a4b6d" }}
-                              >
-                                {category.name}
+                              <Typography fontWeight={600}>
+                                {facture.client_name}
                               </Typography>
                             </Box>
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Typography variant="body2">
-                              {category.description}
-                            </Typography>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            #{facture.commande_ref}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Typography variant="body2" color="text.secondary">
-                              {new Date(
-                                category.createdAt
-                              ).toLocaleDateString()}
-                            </Typography>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            {new Date(facture.date_facture).toLocaleDateString()}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Chip
-                              label={
-                                category.status === "active"
-                                  ? "Active"
-                                  : "Inactive"
-                              }
-                              color={
-                                category.status === "active"
-                                  ? "success"
-                                  : "default"
-                              }
-                              size="small"
-                              sx={{
-                                borderRadius: 1,
-                                fontWeight: 600,
-                                textTransform: "capitalize",
-                                minWidth: 80,
-                                justifyContent: "center",
-                              }}
-                            />
+                          <TableCell>
+                            {/* Vérification si facture.total est un nombre */}
+                            {typeof facture.total === "number"
+                              ? facture.total.toFixed(2)
+                              : "N/A"}
                           </TableCell>
                           <TableCell align="right">
                             <Box
@@ -511,9 +557,24 @@ const FactureList = () => {
                                 gap: 1,
                               }}
                             >
+                              <Tooltip title="Générer PDF" arrow>
+                                <IconButton
+                                  onClick={() => handleGeneratePDF(facture.id)}
+                                  sx={{
+                                    color: "#ff4444",
+                                    "&:hover": {
+                                      color: "#d32f2f",
+                                      transform: "scale(1.2)",
+                                    },
+                                    transition: "all 0.3s ease",
+                                  }}
+                                >
+                                  <PictureAsPdf />
+                                </IconButton>
+                              </Tooltip>
                               <Tooltip title="Modifier" arrow>
                                 <IconButton
-                                  onClick={() => handleEdit(category)}
+                                  onClick={() => handleEdit(facture)}
                                   sx={{
                                     color: "#3a4b6d",
                                     "&:hover": {
@@ -528,7 +589,7 @@ const FactureList = () => {
                               </Tooltip>
                               <Tooltip title="Supprimer" arrow>
                                 <IconButton
-                                  onClick={() => handleDelete(category.id)}
+                                  onClick={() => handleDelete(facture.id)}
                                   sx={{
                                     color: "#ff4444",
                                     "&:hover": {
@@ -549,7 +610,7 @@ const FactureList = () => {
 
                 {!loading && emptyRows > 0 && (
                   <TableRow style={{ height: 53 * emptyRows }}>
-                    <TableCell colSpan={5} />
+                    <TableCell colSpan={6} />
                   </TableRow>
                 )}
               </TableBody>
@@ -560,7 +621,7 @@ const FactureList = () => {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={filteredCategories.length}
+            count={filteredFactures.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}
@@ -593,10 +654,10 @@ const FactureList = () => {
             zIndex: 1000,
           }}
         >
-          <Tooltip title="Ajouter une catégorie" arrow>
+          <Tooltip title="Ajouter une facture" arrow>
             <Button
               variant="contained"
-              onClick={handleAddCategory}
+              onClick={handleAddFacture}
               sx={{
                 borderRadius: "50%",
                 width: 60,
@@ -616,11 +677,11 @@ const FactureList = () => {
         </Box>
 
         {/* Modal du formulaire */}
-        <CategoryForm
+        <FactureForm
           open={openForm}
           onClose={() => setOpenForm(false)}
-          refreshCategories={fetchCategories}
-          categoryToEdit={categoryToEdit}
+          refreshFactures={fetchFactures}
+          factureToEdit={factureToEdit}
         />
       </Box>
     </Fade>

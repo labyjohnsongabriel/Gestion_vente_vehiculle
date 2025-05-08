@@ -28,7 +28,6 @@ import {
   Chip,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-
 import {
   Palette as PaletteIcon,
   Notifications as NotificationsIcon,
@@ -42,6 +41,8 @@ import {
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import { styled } from "@mui/system";
+import axios from "axios";
+import { useAuth } from "../components/context/AuthContext";
 
 // Composants stylisés
 const SettingsCard = styled(Paper)(({ theme }) => ({
@@ -82,6 +83,8 @@ const SettingsSectionHeader = styled(Box)(({ theme }) => ({
 const Settings = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { user, token } = useAuth();
+
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState({
     darkMode: false,
@@ -90,15 +93,49 @@ const Settings = () => {
     language: "fr",
     dashboardLayout: "default",
     timezone: "Europe/Paris",
+    systemAlerts: true,
+    updateNotifications: true,
+    messageNotifications: true,
+    emailNotifications: true,
+    pushNotifications: true,
+    smsNotifications: false,
+    developerMode: false,
+    advancedStats: false,
+    showTutorials: true,
   });
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(true);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState("success");
 
   useEffect(() => {
-    // Simuler le chargement des paramètres sauvegardés
-    const savedSettings = JSON.parse(localStorage.getItem("appSettings")) || {};
-    setSettings((prev) => ({ ...prev, ...savedSettings }));
-  }, []);
+    const fetchSettings = async () => {
+      if (!token) return;
+
+      try {
+        const response = await axios.get("/api/settings", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setSettings(response.data);
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+        showSnackbar("Failed to load settings", "error");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, [token]);
+
+  const showSnackbar = (message, severity = "success") => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -111,29 +148,66 @@ const Settings = () => {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      // Simuler une requête API
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      localStorage.setItem("appSettings", JSON.stringify(settings));
-      setSnackbarOpen(true);
+      await axios.put("/api/settings", settings, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      showSnackbar("Settings saved successfully!");
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      showSnackbar("Failed to save settings", "error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleReset = () => {
-    setSettings({
-      darkMode: false,
-      notifications: true,
-      fontSize: "medium",
-      language: "fr",
-      dashboardLayout: "default",
-      timezone: "Europe/Paris",
-    });
+  const handleReset = async () => {
+    setIsLoading(true);
+    try {
+      await axios.post(
+        "/api/settings/reset",
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const response = await axios.get("/api/settings", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setSettings(response.data);
+      showSnackbar("Settings reset to defaults");
+    } catch (error) {
+      console.error("Failed to reset settings:", error);
+      showSnackbar("Failed to reset settings", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };
+
+  if (isLoading && !settings) {
+    return (
+      <Container
+        maxWidth="lg"
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <CircularProgress />
+      </Container>
+    );
+  }
 
   return (
     <Container
@@ -402,15 +476,45 @@ const Settings = () => {
                   </FormLabel>
                   <Stack spacing={1} sx={{ mt: 1 }}>
                     <FormControlLabel
-                      control={<Switch defaultChecked />}
+                      control={
+                        <Switch
+                          checked={settings.systemAlerts}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "systemAlerts",
+                              e.target.checked
+                            )
+                          }
+                        />
+                      }
                       label="Alertes système"
                     />
                     <FormControlLabel
-                      control={<Switch defaultChecked />}
+                      control={
+                        <Switch
+                          checked={settings.updateNotifications}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "updateNotifications",
+                              e.target.checked
+                            )
+                          }
+                        />
+                      }
                       label="Mises à jour"
                     />
                     <FormControlLabel
-                      control={<Switch defaultChecked />}
+                      control={
+                        <Switch
+                          checked={settings.messageNotifications}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "messageNotifications",
+                              e.target.checked
+                            )
+                          }
+                        />
+                      }
                       label="Nouveaux messages"
                     />
                   </Stack>
@@ -428,15 +532,45 @@ const Settings = () => {
 
               <Stack spacing={2}>
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={
+                    <Switch
+                      checked={settings.emailNotifications}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "emailNotifications",
+                          e.target.checked
+                        )
+                      }
+                    />
+                  }
                   label="Notifications par email"
                 />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={
+                    <Switch
+                      checked={settings.pushNotifications}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "pushNotifications",
+                          e.target.checked
+                        )
+                      }
+                    />
+                  }
                   label="Notifications push"
                 />
                 <FormControlLabel
-                  control={<Switch />}
+                  control={
+                    <Switch
+                      checked={settings.smsNotifications}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "smsNotifications",
+                          e.target.checked
+                        )
+                      }
+                    />
+                  }
                   label="Notifications SMS"
                 />
               </Stack>
@@ -503,15 +637,36 @@ const Settings = () => {
 
               <Stack spacing={2}>
                 <FormControlLabel
-                  control={<Switch />}
+                  control={
+                    <Switch
+                      checked={settings.developerMode}
+                      onChange={(e) =>
+                        handleSettingChange("developerMode", e.target.checked)
+                      }
+                    />
+                  }
                   label="Mode développeur"
                 />
                 <FormControlLabel
-                  control={<Switch />}
+                  control={
+                    <Switch
+                      checked={settings.advancedStats}
+                      onChange={(e) =>
+                        handleSettingChange("advancedStats", e.target.checked)
+                      }
+                    />
+                  }
                   label="Afficher les statistiques avancées"
                 />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={
+                    <Switch
+                      checked={settings.showTutorials}
+                      onChange={(e) =>
+                        handleSettingChange("showTutorials", e.target.checked)
+                      }
+                    />
+                  }
                   label="Toujours afficher les tutoriels"
                 />
               </Stack>
@@ -528,6 +683,7 @@ const Settings = () => {
           startIcon={<ResetIcon />}
           onClick={handleReset}
           sx={{ minWidth: 200 }}
+          disabled={isLoading}
         >
           Réinitialiser
         </Button>
@@ -561,11 +717,11 @@ const Settings = () => {
       >
         <Alert
           onClose={handleSnackbarClose}
-          severity="success"
+          severity={snackbarSeverity}
           icon={<CheckCircleIcon fontSize="inherit" />}
           sx={{ width: "100%" }}
         >
-          Vos paramètres ont été enregistrés avec succès !
+          {snackbarMessage}
         </Alert>
       </Snackbar>
     </Container>

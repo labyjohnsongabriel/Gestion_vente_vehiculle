@@ -20,18 +20,20 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
+  Button,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
   Notifications as NotificationsIcon,
   Person as ProfileIcon,
-  Settings as SettingsIcon,
+  Dashboard as DashboardIcon,
   Logout as LogoutIcon,
   Circle,
   LocalShipping,
   CheckCircle,
   Engineering,
-  Dashboard as DashboardIcon,
+  Settings as SettingsIcon,
+  WorkOutline,
 } from "@mui/icons-material";
 import PersonIcon from "@mui/icons-material/Person";
 import { useSidebar } from "../context/SidebarContext";
@@ -40,40 +42,57 @@ import moment from "moment";
 import "moment/locale/fr";
 import { styled } from "@mui/material/styles";
 
+// Définition des styles améliorés
 const PremiumAppBar = styled(AppBar)(({ theme }) => ({
-  background: "linear-gradient(135deg, #3a5169 0%, #2a2a4a 100%)",
+  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
   color: theme.palette.common.white,
   boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
   backdropFilter: "blur(10px)",
-  borderBottom: "1px solid rgba(255,255,255,0.1)",
+  borderBottom: "1px solid rgba(0, 0, 0, 0.1)",
+  borderRadius: "1px", // Ajoutez cette ligne pour le border-radius
   transition: "all 0.3s ease",
   "&:hover": {
     boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
   },
 }));
 
-const StatusBadge = styled(Circle)(({ status }) => ({
-  position: "absolute",
-  bottom: 2,
-  right: 2,
-  width: 14,
-  height: 14,
-  borderRadius: "50%",
-  border: "2px solid #ffffff",
-  backgroundColor:
-    status === "online"
-      ? "#4CAF50"
-      : status === "away"
-      ? "#FFC107"
-      : "#F44336",
-  boxShadow: "0 0 8px rgba(0,0,0,0.3)",
-}));
+
+const StatusBadge = ({ status }) => {
+  const getStatusColor = () => {
+    switch (status) {
+      case "online":
+        return "#4CAF50";
+      case "away":
+        return "#FFC107";
+      case "busy":
+        return "#F44336";
+      case "offline":
+        return "#9E9E9E";
+      default:
+        return "#9E9E9E";
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        width: 14,
+        height: 14,
+        borderRadius: "50%",
+        border: "2px solid #ffffff",
+        backgroundColor: getStatusColor(),
+        boxShadow: "0 0 8px rgba(0,0,0,0.3)",
+      }}
+    />
+  );
+};
 
 const PremiumMenu = styled(Menu)(({ theme }) => ({
   "& .MuiPaper-root": {
     width: 320,
     boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
     background: "linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%)",
+
     "&:before": {
       content: '""',
       display: "block",
@@ -89,6 +108,18 @@ const PremiumMenu = styled(Menu)(({ theme }) => ({
   },
 }));
 
+const NotificationBadge = styled(Badge)(({ theme }) => ({
+  "& .MuiBadge-badge": {
+    backgroundColor: "#EF5350",
+    color: "#ffffff",
+    fontWeight: "bold",
+    boxShadow: "0 2px 4px rgba(239, 83, 80, 0.4)",
+    padding: "0 6px",
+    minWidth: 18,
+    height: 18,
+  },
+}));
+
 const Topbar = () => {
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -101,8 +132,36 @@ const Topbar = () => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+
+      // Vérifier la dernière activité pour définir le statut
+      const lastActivity = localStorage.getItem("lastActivity");
+      if (lastActivity) {
+        const inactiveTime = Date.now() - parseInt(lastActivity);
+        if (inactiveTime > 15 * 60 * 1000) {
+          // 15 minutes
+          setStatus("away");
+        }
+      }
     }
   }, [user]);
+
+  // Mise à jour du statut selon l'activité
+  useEffect(() => {
+    const updateActivity = () => {
+      localStorage.setItem("lastActivity", Date.now().toString());
+      if (status === "away") {
+        setStatus("online");
+      }
+    };
+
+    window.addEventListener("mousemove", updateActivity);
+    window.addEventListener("keydown", updateActivity);
+
+    return () => {
+      window.removeEventListener("mousemove", updateActivity);
+      window.removeEventListener("keydown", updateActivity);
+    };
+  }, [status]);
 
   const fetchNotifications = async () => {
     try {
@@ -126,14 +185,23 @@ const Topbar = () => {
       if (notification.type === "VEHICLE_PART") {
         navigate(`/vehicle-parts/${notification.relatedId}`);
       }
+
+      setNotifAnchorEl(null);
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
   };
 
+  const handleStatusChange = (newStatus) => {
+    setStatus(newStatus);
+    // Ici vous pourriez ajouter une API pour sauvegarder le statut
+  };
+
   const renderNotificationContent = (notification) => {
     const icons = {
       VEHICLE_PART: <LocalShipping sx={{ color: "#5C6BC0" }} />,
+      TASK_ASSIGNED: <WorkOutline sx={{ color: "#FF9800" }} />,
+      SYSTEM: <SettingsIcon sx={{ color: "#673AB7" }} />,
       default: <CheckCircle sx={{ color: "#66BB6A" }} />,
     };
 
@@ -151,7 +219,7 @@ const Topbar = () => {
         <ListItemAvatar>
           <Avatar
             sx={{
-              bgcolor: notification.type === "VEHICLE_PART" ? "#E8EAF6" : "#E8F5E9",
+              bgcolor: notification.read ? "#F5F5F5" : "#E8EAF6",
               width: 40,
               height: 40,
             }}
@@ -163,8 +231,8 @@ const Topbar = () => {
           primary={
             <Typography
               variant="subtitle2"
-              fontWeight={500}
-              color="text.primary"
+              fontWeight={notification.read ? 400 : 600}
+              color={notification.read ? "text.secondary" : "text.primary"}
             >
               {notification.message}
             </Typography>
@@ -178,6 +246,32 @@ const Topbar = () => {
         />
       </ListItem>
     );
+  };
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case "admin":
+        return "Administrateur";
+      case "manager":
+        return "Gestionnaire";
+      case "technician":
+        return "Technicien";
+      default:
+        return "Employé";
+    }
+  };
+
+  const getRoleIcon = (role) => {
+    switch (role) {
+      case "admin":
+        return <Engineering sx={{ color: "white", fontSize: 16 }} />;
+      case "manager":
+        return <DashboardIcon sx={{ color: "#FF9800", fontSize: 16 }} />;
+      case "technician":
+        return <LocalShipping sx={{ color: "#2196F3", fontSize: 16 }} />;
+      default:
+        return <PersonIcon sx={{ color: "#5C6BC0", fontSize: 16 }} />;
+    }
   };
 
   return (
@@ -209,6 +303,8 @@ const Topbar = () => {
           <MenuIcon />
         </IconButton>
 
+        {/* Logo ou titre ici si nécessaire */}
+
         <Box sx={{ flexGrow: 1 }} />
 
         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -222,13 +318,7 @@ const Topbar = () => {
                 },
               }}
             >
-              <Badge
-                badgeContent={notifications.filter((n) => !n.read).length}
-                color="error"
-                overlap="circular"
-              >
-                <NotificationsIcon />
-              </Badge>
+              
             </IconButton>
           </Tooltip>
 
@@ -255,7 +345,8 @@ const Topbar = () => {
                     width: 42,
                     height: 42,
                     border: "2px solid rgba(255,255,255,0.3)",
-                    background: "linear-gradient(135deg, #7986CB 0%, #5C6BC0 100%)",
+                    background:
+                      "linear-gradient(135deg, #7986CB 0%, #5C6BC0 100%)",
                   }}
                 >
                   {user?.firstName?.charAt(0)}
@@ -275,13 +366,38 @@ const Topbar = () => {
           anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
         >
           <Box sx={{ p: 2 }}>
-            <Typography
-              variant="h6"
-              fontWeight={600}
-              sx={{ mb: 1, color: "#1A237E" }}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ mb: 1 }}
             >
-              Notifications
-            </Typography>
+              <Typography
+                variant="h6"
+                fontWeight={600}
+                sx={{ color: "#1A237E" }}
+              >
+                Notifications
+              </Typography>
+       {   /*    {notifications.filter((n) => !n.read).length > 0 && (
+                <Button
+                  size="small"
+                  sx={{ color: "#5C6BC0", fontSize: 12 }}
+                  onClick={async () => {
+                    try {
+                      await axios.put("/api/notifications/read-all");
+                      setNotifications(
+                        notifications.map((n) => ({ ...n, read: true }))
+                      );
+                    } catch (error) {
+                      console.error("Error marking all as read:", error);
+                    }
+                  }}
+                >
+                  Tout marquer comme lu
+                </Button>
+              )}*/}
+            </Stack>
             <Divider sx={{ mb: 2 }} />
             <List
               sx={{
@@ -289,11 +405,18 @@ const Topbar = () => {
                 maxHeight: 400,
                 overflow: "auto",
                 "&::-webkit-scrollbar": {
-                  display: "none",
+                  width: "4px",
+                },
+                "&::-webkit-scrollbar-track": {
+                  background: "#f1f1f1",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  background: "#c5cae9",
+                  borderRadius: "4px",
                 },
               }}
             >
-              {notifications.length > 0 ? (
+         {    /* {notifications.length > 0 ? (
                 notifications.map((notification) => (
                   <MenuItem
                     key={notification._id}
@@ -319,7 +442,7 @@ const Topbar = () => {
                 >
                   Aucune nouvelle notification
                 </Typography>
-              )}
+              )}*/}
             </List>
           </Box>
         </PremiumMenu>
@@ -346,7 +469,9 @@ const Topbar = () => {
                   mx: "auto",
                   mb: 2,
                   border: "4px solid #5C6BC0",
-                  background: "linear-gradient(135deg, #7986CB 0%, #5C6BC0 100%)",
+                  background:
+                    "linear-gradient(135deg, #7986CB 0%, #5C6BC0 100%)",
+                  boxShadow: "0 8px 25px rgba(92, 107, 192, 0.3)",
                 }}
               >
                 {user?.firstName?.charAt(0)}
@@ -364,14 +489,8 @@ const Topbar = () => {
               {user?.email}
             </Typography>
             <Chip
-              icon={
-                user?.role === "admin" ? (
-                  <Engineering sx={{ color: "white", fontSize: 16 }} />
-                ) : (
-                  <PersonIcon sx={{ color: "#5C6BC0", fontSize: 16 }} />
-                )
-              }
-              label={user?.role === "admin" ? "Administrateur" : "Employé"}
+              icon={getRoleIcon(user?.role)}
+              label={getRoleLabel(user?.role)}
               size="small"
               sx={{
                 px: 1.5,
@@ -379,8 +498,17 @@ const Topbar = () => {
                 background:
                   user?.role === "admin"
                     ? "linear-gradient(135deg, #5C6BC0 0%, #3949AB 100%)"
+                    : user?.role === "manager"
+                    ? "linear-gradient(135deg, #FFB74D 0%, #FF9800 100%)"
+                    : user?.role === "technician"
+                    ? "linear-gradient(135deg, #64B5F6 0%, #2196F3 100%)"
                     : "rgba(92, 107, 192, 0.1)",
-                color: user?.role === "admin" ? "white" : "#5C6BC0",
+                color:
+                  user?.role === "admin" ||
+                  user?.role === "manager" ||
+                  user?.role === "technician"
+                    ? "white"
+                    : "#5C6BC0",
                 fontWeight: 600,
                 boxShadow: "0 2px 6px rgba(92, 107, 192, 0.2)",
               }}
@@ -389,8 +517,82 @@ const Topbar = () => {
 
           <Divider sx={{ my: 1 }} />
 
+          {/* Section statut */}
+          <Box sx={{ px: 3, py: 1 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mb: 1, display: "block" }}
+            >
+              Définir votre statut
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="En ligne">
+                <Avatar
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: status === "online" ? "#E8F5E9" : "#F5F5F5",
+                    cursor: "pointer",
+                    border: status === "online" ? "2px solid #4CAF50" : "none",
+                  }}
+                  onClick={() => handleStatusChange("online")}
+                >
+                  <Circle sx={{ color: "#4CAF50", fontSize: 14 }} />
+                </Avatar>
+              </Tooltip>
+              <Tooltip title="Absent">
+                <Avatar
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: status === "away" ? "#FFF8E1" : "#F5F5F5",
+                    cursor: "pointer",
+                    border: status === "away" ? "2px solid #FFC107" : "none",
+                  }}
+                  onClick={() => handleStatusChange("away")}
+                >
+                  <Circle sx={{ color: "#FFC107", fontSize: 14 }} />
+                </Avatar>
+              </Tooltip>
+              <Tooltip title="Occupé">
+                <Avatar
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: status === "busy" ? "#FFEBEE" : "#F5F5F5",
+                    cursor: "pointer",
+                    border: status === "busy" ? "2px solid #F44336" : "none",
+                  }}
+                  onClick={() => handleStatusChange("busy")}
+                >
+                  <Circle sx={{ color: "#F44336", fontSize: 14 }} />
+                </Avatar>
+              </Tooltip>
+              <Tooltip title="Hors ligne">
+                <Avatar
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: status === "offline" ? "#EEEEEE" : "#F5F5F5",
+                    cursor: "pointer",
+                    border: status === "offline" ? "2px solid #9E9E9E" : "none",
+                  }}
+                  onClick={() => handleStatusChange("offline")}
+                >
+                  <Circle sx={{ color: "#9E9E9E", fontSize: 14 }} />
+                </Avatar>
+              </Tooltip>
+            </Stack>
+          </Box>
+
+          <Divider sx={{ my: 1 }} />
+
           <MenuItem
-            onClick={() => navigate("/profile")}
+            onClick={() => {
+              navigate("/dashboard");
+              setAnchorEl(null);
+            }}
             sx={{
               py: 1.5,
               px: 3,
@@ -407,9 +609,33 @@ const Topbar = () => {
             </Typography>
           </MenuItem>
 
-          {user?.role === "admin" && (
+          <MenuItem
+            onClick={() => {
+              navigate("/settings");
+              setAnchorEl(null);
+            }}
+            sx={{
+              py: 1.5,
+              px: 3,
+              "&:hover": {
+                background: "rgba(92, 107, 192, 0.08)",
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <SettingsIcon sx={{ color: "#5C6BC0" }} />
+            </ListItemIcon>
+            <Typography variant="body2" fontWeight={500}>
+              Paramètres
+            </Typography>
+          </MenuItem>
+
+          {(user?.role === "admin" || user?.role === "manager") && (
             <MenuItem
-              onClick={() => navigate("/admin/dashboard")}
+              onClick={() => {
+                navigate("/admin");
+                setAnchorEl(null);
+              }}
               sx={{
                 py: 1.5,
                 px: 3,
@@ -430,7 +656,10 @@ const Topbar = () => {
           <Divider sx={{ my: 1 }} />
 
           <MenuItem
-            onClick={logout}
+            onClick={() => {
+              logout();
+              setAnchorEl(null);
+            }}
             sx={{
               py: 1.5,
               px: 3,
@@ -442,7 +671,14 @@ const Topbar = () => {
             <ListItemIcon sx={{ minWidth: 40 }}>
               <LogoutIcon sx={{ color: "#EF5350" }} />
             </ListItemIcon>
-            <Typography variant="body2" fontWeight={500}>
+            <Typography
+              variant="body2"
+              fontWeight={500}
+              onClick={() => {
+                navigate("/login");
+                setAnchorEl(null);
+              }}
+            >
               Déconnexion
             </Typography>
           </MenuItem>

@@ -110,19 +110,9 @@ exports.deleteClient = async (req, res) => {
 exports.getClientCount = async (req, res) => {
   try {
     const [rows] = await db.query("SELECT COUNT(*) AS count FROM clients");
-    console.log("[getClientCount] Résultat de la requête :", rows);
-
-    const count = rows[0].count;
-
-    if (count === 0) {
-      return res.status(404).json({ message: "Aucun client trouvé." });
-    }
-
-    return res.status(200).json({ count });
+    res.status(200).json({ count: rows[0].count });
   } catch (err) {
-    console.error("[getClientCount] Erreur:", err.message);
-    return res.status(500).json({
-      error: "Erreur serveur lors du comptage des clients.",
-    });
+    console.error("[getClientCount] Erreur :", err.message);
+    res.status(500).json({ error: "Erreur serveur lors du comptage des clients." });
   }
 };

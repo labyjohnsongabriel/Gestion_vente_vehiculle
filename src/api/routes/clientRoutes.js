@@ -1,14 +1,18 @@
 const express = require("express");
-const router = express.Router();
 const clientController = require("../controllers/clientController");
+const authMiddleware = require("../middleware/authMiddleware");
 
-// ✅ Route pour récupérer tous les clients
+const router = express.Router();
+
+// ✅ Route pour récupérer le nombre de clients
+router.get("/count", clientController.getClientCount);
+
+// ✅ Routes publiques
 router.get("/", clientController.getAllClients);
-
-// ✅ Route pour récupérer un client par ID
 router.get("/:id", clientController.getClientById);
 
-// ✅ Route pour créer un nouveau client
+// ✅ Routes protégées
+router.post("/", authMiddleware, clientController.createClient);
 router.post("/", clientController.createClient);
 
 // ✅ Route pour mettre à jour un client
@@ -16,8 +20,5 @@ router.put("/:id", clientController.updateClient);
 
 // ✅ Route pour supprimer un client
 router.delete("/:id", clientController.deleteClient);
-
-// ✅ Route pour compter les clients
-router.get("/count", clientController.getClientCount);
 
 module.exports = router;

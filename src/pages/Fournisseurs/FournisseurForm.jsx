@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+
+import { CalendarToday } from "@mui/icons-material";
 import {
   Dialog,
   DialogTitle,
@@ -7,6 +9,7 @@ import {
   Button,
   TextField,
   Typography,
+  InputAdornment,
   Box,
   Fade,
   Slide,
@@ -14,11 +17,9 @@ import {
   Divider,
   useMediaQuery,
   useTheme,
-  Chip,
   CircularProgress,
-  Avatar,
 } from "@mui/material";
-import { Close, Save, Edit, Business, CheckCircle, CloudUpload } from "@mui/icons-material";
+import { Close, Save, Edit, Business, CheckCircle } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -58,19 +59,12 @@ const PremiumButton = styled(Button)(({ theme }) => ({
   },
 }));
 
-const VisuallyHiddenInput = styled('input')({
-  clip: 'rect(0 0 0 0)',
-  clipPath: 'inset(50%)',
-  height: 1,
-  overflow: 'hidden',
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  whiteSpace: 'nowrap',
-  width: 1,
-});
-
-const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit }) => {
+const FournisseurForm = ({
+  open,
+  onClose,
+  refreshFournisseurs,
+  fournisseurToEdit,
+}) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [formData, setFormData] = useState({
@@ -78,9 +72,8 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
     email: "",
     telephone: "",
     adresse: "",
+    date_ajout: "",
     status: "active",
-   // image: null,
-   // imagePreview: "",
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,8 +87,9 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
         telephone: fournisseurToEdit.telephone || "",
         adresse: fournisseurToEdit.adresse || "",
         status: fournisseurToEdit.status || "active",
-        image: fournisseurToEdit.image || null,
-        imagePreview: fournisseurToEdit.image || "",
+        date_ajout: fournisseurToEdit.date_ajout
+          ? new Date(fournisseurToEdit.date_ajout).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
       });
     } else {
       setFormData({
@@ -104,8 +98,7 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
         telephone: "",
         adresse: "",
         status: "active",
-        image: null,
-        imagePreview: "",
+        date_ajout: new Date().toISOString().split("T")[0],
       });
     }
     setErrors({});
@@ -120,21 +113,6 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
     }
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({
-          ...formData,
-          image: file,
-          imagePreview: reader.result,
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const validateForm = () => {
     const newErrors = {};
     if (!formData.nom.trim()) newErrors.nom = "Le nom est requis";
@@ -143,7 +121,9 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Email invalide";
     }
-    if (!formData.telephone.trim()) newErrors.telephone = "Le téléphone est requis";
+    if (!formData.telephone.trim())
+      newErrors.telephone = "Le téléphone est requis";
+    if (!formData.date_ajout) newErrors.date_ajout = "La date est requise";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -155,27 +135,27 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
     setIsSubmitting(true);
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('nom', formData.nom);
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('telephone', formData.telephone);
-      formDataToSend.append('adresse', formData.adresse);
-      formDataToSend.append('status', formData.status);
-      if (formData.image) {
-        formDataToSend.append('image', formData.image);
-      }
+      // Envoyer directement l'objet JSON au lieu de FormData
+      const dataToSend = {
+        nom: formData.nom,
+        email: formData.email,
+        telephone: formData.telephone,
+        adresse: formData.adresse,
+        date_ajout: formData.date_ajout,
+        status: formData.status,
+      };
 
       if (fournisseurToEdit) {
-        await axios.put(`${API_URL}/${fournisseurToEdit.id}`, formDataToSend, {
+        await axios.put(`${API_URL}/${fournisseurToEdit.id}`, dataToSend, {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            "Content-Type": "application/json",
+          },
         });
       } else {
-        await axios.post(API_URL, formDataToSend, {
+        await axios.post(API_URL, dataToSend, {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            "Content-Type": "application/json",
+          },
         });
       }
 
@@ -229,7 +209,9 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
                 <Business sx={{ fontSize: 32 }} />
               )}
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                {fournisseurToEdit ? "Modifier le Fournisseur" : "Nouveau Fournisseur"}
+                {fournisseurToEdit
+                  ? "Modifier le Fournisseur"
+                  : "Nouveau Fournisseur"}
               </Typography>
             </Box>
             <IconButton
@@ -289,41 +271,6 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
                 </Box>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {/* Section image */}
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 2 }}>
-                    <Avatar
-                      src={formData.imagePreview}
-                      sx={{
-                        width: 120,
-                        height: 120,
-                        mb: 2,
-                        border: "3px solid #667eea",
-                        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-                      }}
-                    >
-                      {formData.nom?.charAt(0)}
-                    </Avatar>
-                    <Button
-                      component="label"
-                      variant="contained"
-                      startIcon={<CloudUpload />}
-                      sx={{
-                        borderRadius: "50px",
-                        background: "linear-gradient(135deg, #6B73FF 0%, #000DFF 100%)",
-                        "&:hover": {
-                          background: "linear-gradient(135deg, #5a62e0 0%, #0008cc 100%)",
-                        },
-                      }}
-                    >
-                      Choisir une image
-                      <VisuallyHiddenInput 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleImageChange} 
-                      />
-                    </Button>
-                  </Box>
-
                   <TextField
                     label="Nom du fournisseur*"
                     name="nom"
@@ -367,6 +314,27 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
                   />
 
                   <TextField
+                    label="Date de commande *"
+                    name="date_ajout"
+                    type="date"
+                    fullWidth
+                    value={formData.date_ajout}
+                    onChange={handleChange}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CalendarToday color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    error={!!errors.date_ajout}
+                    helperText={errors.date_ajout}
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                  />
+
+                  <TextField
                     label="Adresse"
                     name="adresse"
                     fullWidth
@@ -378,48 +346,7 @@ const FournisseurForm = ({ open, onClose, refreshFournisseurs, fournisseurToEdit
                     InputProps={{
                       sx: { borderRadius: "12px" },
                     }}
-                    />
-                    {/**
-                     * 
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
-                      Statut
-                    </Typography>
-                    <Box sx={{ display: "flex", gap: 2 }}>
-                      <Chip
-                        label="Actif"
-                        clickable
-                        onClick={() =>
-                          setFormData({ ...formData, status: "active" })
-                        }
-                        color={
-                          formData.status === "active" ? "primary" : "default"
-                        }
-                        sx={{
-                          borderRadius: "8px",
-                          fontWeight: 600,
-                          padding: "8px 16px",
-                        }}
-                      />
-                      <Chip
-                        label="Inactif"
-                        clickable
-                        onClick={() =>
-                          setFormData({ ...formData, status: "inactive" })
-                        }
-                        color={
-                          formData.status === "inactive" ? "primary" : "default"
-                        }
-                        sx={{
-                          borderRadius: "8px",
-                          fontWeight: 600,
-                          padding: "8px 16px",
-                        }}
-                      />
-                    </Box>
-                  </Box>
-
-                     */}
+                  />
                 </Box>
               </>
             )}

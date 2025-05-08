@@ -19,7 +19,7 @@ import {
 import { Close, Save, Category, CheckCircle, Error } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
-import axios from "axios";
+import axios from "../../api/axios"; // Assurez-vous que le chemin est correct
 
 const API_URL = "http://localhost:5000/api/categories";
 

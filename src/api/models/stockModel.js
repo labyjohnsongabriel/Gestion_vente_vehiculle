@@ -1,32 +1,51 @@
-const db = require('../config/db');
+const db = require("../config/db"); // Assurez-vous que ce fichier utilise mysql2/promise
 
 const Stock = {
-    getAll: (callback) => {
-      const sql = 'SELECT s.id, s.piece_id, s.quantity, p.name AS piece_name FROM stocks s JOIN pieces p ON s.piece_id = p.id';
-      db.query(sql, callback);
-    },
+  getAll: async () => {
+    const sql = `
+      SELECT s.id, s.piece_id, s.quantity, p.name AS piece_name
+      FROM stocks s
+      JOIN pieces p ON s.piece_id = p.id
+    `;
+    const [rows] = await db.execute(sql);
+    return rows;
+  },
 
-    getByPieceId: (piece_id, callback) => {
-        const sql = 'SELECT s.*, p.name AS piece_name FROM stocks s JOIN pieces p ON s.piece_id = p.id WHERE s.piece_id = ?';
-        db.query(sql, [piece_id], callback);
-      },
+  getByPieceId: async (piece_id) => {
+    const sql = `
+      SELECT s.*, p.name AS piece_name
+      FROM stocks s
+      JOIN pieces p ON s.piece_id = p.id
+      WHERE s.piece_id = ?
+    `;
+    const [rows] = await db.execute(sql, [piece_id]);
+    return rows;
+  },
 
-      create: (data, callback) => {
-        const { piece_id , quantity } = data;
-        const sql = `INSERT INTO stocks (piece_id, quantity)
-                     VALUES (?, ?)`;
-        db.query(sql, [piece_id, quantity], callback);
-      },
+  create: async ({ piece_id, quantity }) => {
+    const sql = `
+      INSERT INTO stocks (piece_id, quantity)
+      VALUES (?, ?)
+    `;
+    const [result] = await db.execute(sql, [piece_id, quantity]);
+    return result;
+  },
 
-      update: (id, quantity, callback) => {
-          const sql = `UPDATE stocks SET quantity= ?  WHERE id = ?`;
-          db.query(sql, [quantity, id], callback);
-         },  
+  update: async (id, quantity) => {
+    const sql = `
+      UPDATE stocks SET quantity = ? WHERE id = ?
+    `;
+    const [result] = await db.execute(sql, [quantity, id]);
+    return result;
+  },
 
-         delete: (id, callback) => {
-        const sql ='DELETE FROM stocks WHERE id = ?';
-        db.query(sql, [id], callback);
-          },
-        };
-    
-        module.exports = Stock;
+  delete: async (id) => {
+    const sql = `
+      DELETE FROM stocks WHERE id = ?
+    `;
+    const [result] = await db.execute(sql, [id]);
+    return result;
+  },
+};
+
+module.exports = Stock;

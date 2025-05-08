@@ -1,12 +1,32 @@
 const express = require("express");
+const categorieController = require("../controllers/categorieController");
+const authMiddleware = require("../middleware/authMiddleware");
+const roleMiddleware = require("../middleware/roleMiddleware");
+
 const router = express.Router();
-const categorieController = require("../controllers/categorieController"); // Assurez-vous d'importer correctement le contrôleur
 
-router.get("/", categorieController.getAllCategories);          // GET /api/categories
-router.get("/:id", categorieController.getCategorieById);      // GET /api/categories/:id
-router.post("/", categorieController.createCategorie);         // POST /api/categories
-router.put("/:id", categorieController.updateCategorie);       // PUT /api/categories/:id
-router.delete("/:id", categorieController.deleteCategorie);    // DELETE /api/categories/:id
+// ✅ Routes publiques
+router.get("/", categorieController.getAllCategories);
+router.get("/:id", categorieController.getCategorieById);
 
+// ✅ Routes protégées (authentification requise)
+router.post(
+  "/",
+  authMiddleware,
+  roleMiddleware("admin"),
+  categorieController.createCategorie
+);
+router.put(
+  "/:id",
+  authMiddleware,
+  roleMiddleware("admin"),
+  categorieController.updateCategorie
+);
+router.delete(
+  "/:id",
+  authMiddleware,
+  roleMiddleware("admin"),
+  categorieController.deleteCategorie
+);
 
 module.exports = router;

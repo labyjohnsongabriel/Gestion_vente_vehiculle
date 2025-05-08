@@ -21,24 +21,30 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
+
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Edit,
   Delete,
   Search,
   Add,
-  FilterList,
   Refresh,
-  Category,
+  Inventory,
+  Close,
+  Print,
+  FilterList,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
-import CategoryForm from "./StockForm";
-
+import StockForm from "./StockForm";
 import axios from "axios";
-import "../../styles/Categorie.css";
+import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:5000/api/commandes";
+const API_URL = "http://localhost:5000/api/stocks";
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
@@ -80,24 +86,25 @@ const PremiumButton = styled(Button)(({ theme }) => ({
 }));
 
 const StockList = () => {
-  const [categories, setCategories] = useState([]);
+  const [stocks, setStocks] = useState([]);
   const [openForm, setOpenForm] = useState(false);
-  const [categoryToEdit, setCategoryToEdit] = useState(null);
+  const [stockToEdit, setStockToEdit] = useState(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const navigate = useNavigate();
 
-  const fetchCategories = async () => {
+  const fetchStocks = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
       const response = await axios.get(API_URL);
-      setCategories(response.data);
+      setStocks(response.data);
     } catch (error) {
-      console.error("Erreur lors du chargement des catégories:", error);
-      Swal.fire("Erreur", "Impossible de charger les catégories", "error");
+      console.error("Erreur lors du chargement des stocks:", error);
+      Swal.fire("Erreur", "Impossible de charger les stocks", "error");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -105,18 +112,18 @@ const StockList = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
+    fetchStocks();
   }, []);
 
-  const handleEdit = (category) => {
-    setCategoryToEdit(category);
+  const handleEdit = (stock) => {
+    setStockToEdit(stock);
     setOpenForm(true);
   };
 
   const handleDelete = async (id) => {
     Swal.fire({
       title: "Confirmer la suppression",
-      html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer cette catégorie? <br/><small>Cette action est irréversible.</small></div>`,
+      html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer ce stock? <br/><small>Cette action est irréversible.</small></div>`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ff4444",
@@ -138,10 +145,10 @@ const StockList = () => {
       if (result.isConfirmed) {
         try {
           await axios.delete(`${API_URL}/${id}`);
-          fetchCategories();
+          fetchStocks();
           Swal.fire({
             title: "Supprimé!",
-            text: "La catégorie a été supprimée avec succès.",
+            text: "Le stock a été supprimé avec succès.",
             icon: "success",
             timer: 1800,
             showConfirmButton: false,
@@ -156,14 +163,14 @@ const StockList = () => {
     });
   };
 
-  const handleAddCategory = () => {
-    setCategoryToEdit(null);
+  const handleAddStock = () => {
+    setStockToEdit(null);
     setOpenForm(true);
   };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchCategories();
+    fetchStocks();
   };
 
   const handleSearch = (e) => {
@@ -171,8 +178,8 @@ const StockList = () => {
     setPage(0);
   };
 
-  const filteredCategories = categories.filter((cat) =>
-    Object.values(cat).some(
+  const filteredStocks = stocks.filter((stock) =>
+    Object.values(stock).some(
       (value) =>
         value &&
         value.toString().toLowerCase().includes(searchTerm.toLowerCase())
@@ -181,7 +188,7 @@ const StockList = () => {
 
   const emptyRows =
     rowsPerPage -
-    Math.min(rowsPerPage, filteredCategories.length - page * rowsPerPage);
+    Math.min(rowsPerPage, filteredStocks.length - page * rowsPerPage);
 
   return (
     <Fade in timeout={600}>
@@ -211,7 +218,7 @@ const StockList = () => {
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Category sx={{ fontSize: 40 }} />
+              <Inventory sx={{ fontSize: 40 }} />
               <Typography
                 variant="h4"
                 sx={{
@@ -289,12 +296,13 @@ const StockList = () => {
 
               <PremiumButton
                 startIcon={<Add />}
-                onClick={handleAddCategory}
+                onClick={handleAddStock}
                 sx={{
                   display: { xs: "none", sm: "flex" },
+               
                 }}
               >
-                Nouvelle Catégorie
+                Nouveau Stock
               </PremiumButton>
             </Box>
           </Box>
@@ -309,49 +317,21 @@ const StockList = () => {
                       "linear-gradient(135deg, #3a4b6d 0%, #1a2a4a 100%)",
                   }}
                 >
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Nom
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    ID Pièce
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Description
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Nom de la Pièce
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
-                    Créé le
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Quantité
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
-                  >
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
                   </TableCell>
                   <TableCell
                     align="right"
-                    sx={{
-                      color: "white",
-                      fontWeight: 600,
-                      backgroundColor: "#3a4b6d",
-                    }}
+                    sx={{ color: "white", fontWeight: 600 }}
                   >
                     Actions
                   </TableCell>
@@ -372,11 +352,11 @@ const StockList = () => {
                       ))}
                     </PremiumTableRow>
                   ))
-                ) : filteredCategories.length === 0 ? (
+                ) : filteredStocks.length === 0 ? (
                   <PremiumTableRow>
                     <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <Box sx={{ textAlign: "center" }}>
-                        <Category
+                        <Inventory
                           sx={{
                             fontSize: 60,
                             color: "text.disabled",
@@ -389,30 +369,34 @@ const StockList = () => {
                           color="text.secondary"
                           sx={{ mb: 1 }}
                         >
-                          Aucune catégorie trouvée
+                          Aucun stock trouvé
                         </Typography>
                         <Typography
                           variant="body2"
                           color="text.secondary"
                           sx={{ mb: 2 }}
                         >
-                          Essayez d'ajouter une nouvelle catégorie
+                          Essayez d'ajouter un nouveau stock
                         </Typography>
                         <PremiumButton
-                          onClick={handleAddCategory}
+                          onClick={handleAddStock}
                           startIcon={<Add />}
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
+                          }}
                         >
-                          Créer une catégorie
+                          Ajouter Stock
                         </PremiumButton>
                       </Box>
                     </TableCell>
                   </PremiumTableRow>
                 ) : (
-                  filteredCategories
+                  filteredStocks
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((category) => (
+                    .map((stock) => (
                       <Slide
-                        key={category.id}
+                        key={stock.id}
                         direction="up"
                         in
                         mountOnEnter
@@ -432,11 +416,10 @@ const StockList = () => {
                             },
                           }}
                         >
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
+                          <TableCell sx={{ color: "#2E7D32", fontWeight: 500 }}>
+                            #{stock.piece_id}
+                          </TableCell>
+                          <TableCell sx={{ color: "#2E7D32" }}>
                             <Box
                               sx={{
                                 display: "flex",
@@ -445,61 +428,27 @@ const StockList = () => {
                               }}
                             >
                               <Avatar
-                                sx={{ bgcolor: "#667eea", color: "white" }}
+                                sx={{ bgcolor: "#3a4b6d", color: "white" }}
                               >
-                                {category.name?.charAt(0)}
+                                {stock.piece_name?.charAt(0) || "P"}
                               </Avatar>
-                              <Typography
-                                fontWeight={600}
-                                sx={{ color: "#3a4b6d" }}
-                              >
-                                {category.name}
+                              <Typography fontWeight={600}>
+                                {stock.piece_name || "Pièce sans nom"}
                               </Typography>
                             </Box>
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Typography variant="body2">
-                              {category.description}
-                            </Typography>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            {stock.quantity}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
-                            <Typography variant="body2" color="text.secondary">
-                              {new Date(
-                                category.createdAt
-                              ).toLocaleDateString()}
-                            </Typography>
-                          </TableCell>
-                          <TableCell
-                            sx={{
-                              color: "#3a4b6d",
-                            }}
-                          >
+                          <TableCell>
                             <Chip
                               label={
-                                category.status === "active"
-                                  ? "Active"
-                                  : "Inactive"
+                                stock.quantity > 0 ? "Disponible" : "Épuisé"
                               }
-                              color={
-                                category.status === "active"
-                                  ? "success"
-                                  : "default"
-                              }
-                              size="small"
+                              color={stock.quantity > 0 ? "success" : "error"}
                               sx={{
-                                borderRadius: 1,
                                 fontWeight: 600,
-                                textTransform: "capitalize",
-                                minWidth: 80,
-                                justifyContent: "center",
+                                borderRadius: 1,
                               }}
                             />
                           </TableCell>
@@ -513,7 +462,7 @@ const StockList = () => {
                             >
                               <Tooltip title="Modifier" arrow>
                                 <IconButton
-                                  onClick={() => handleEdit(category)}
+                                  onClick={() => handleEdit(stock)}
                                   sx={{
                                     color: "#3a4b6d",
                                     "&:hover": {
@@ -528,7 +477,7 @@ const StockList = () => {
                               </Tooltip>
                               <Tooltip title="Supprimer" arrow>
                                 <IconButton
-                                  onClick={() => handleDelete(category.id)}
+                                  onClick={() => handleDelete(stock.id)}
                                   sx={{
                                     color: "#ff4444",
                                     "&:hover": {
@@ -560,7 +509,7 @@ const StockList = () => {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={filteredCategories.length}
+            count={filteredStocks.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}
@@ -593,10 +542,10 @@ const StockList = () => {
             zIndex: 1000,
           }}
         >
-          <Tooltip title="Ajouter une catégorie" arrow>
+          <Tooltip title="Ajouter un stock" arrow>
             <Button
               variant="contained"
-              onClick={handleAddCategory}
+              onClick={handleAddStock}
               sx={{
                 borderRadius: "50%",
                 width: 60,
@@ -616,11 +565,11 @@ const StockList = () => {
         </Box>
 
         {/* Modal du formulaire */}
-        <CategoryForm
+        <StockForm
           open={openForm}
           onClose={() => setOpenForm(false)}
-          refreshCategories={fetchCategories}
-          categoryToEdit={categoryToEdit}
+          refreshStocks={fetchStocks}
+          stockToEdit={stockToEdit}
         />
       </Box>
     </Fade>

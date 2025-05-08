@@ -1,33 +1,13 @@
 const mysql = require("mysql2/promise");
-const dotenv = require("dotenv");
-
-dotenv.config();
 
 // Pool de connexions MySQL
 const connection = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "gestion_pieces",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  host: "localhost",
+  user: "root",
+  password: "root",
+  database: "gestion_pieces",
   multipleStatements: true,
 });
-
-// Fonction pour tester la connexion
-async function testConnection() {
-  try {
-    const conn = await connection.getConnection();
-    console.log("✅ Connexion à la base de données réussie !");
-    conn.release();
-  } catch (err) {
-    console.error("❌ Erreur de connexion à la base de données :", err.message);
-    process.exit(1); // Arrêtez le processus si la connexion échoue
-  }
-}
-
-testConnection();
 
 // Fonction de création des tables
 async function createTables() {
@@ -41,6 +21,29 @@ async function createTables() {
       role ENUM('admin', 'employee') DEFAULT 'employee',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    \-- User settings table
+CREATE TABLE IF NOT EXISTS user\_settings (
+id INT AUTO\_INCREMENT PRIMARY KEY,
+user\_id INT NOT NULL,
+dark\_mode BOOLEAN DEFAULT FALSE,
+notifications\_enabled BOOLEAN DEFAULT TRUE,
+font\_size ENUM('small', 'medium', 'large') DEFAULT 'medium',
+language VARCHAR(10) DEFAULT 'fr',
+dashboard\_layout ENUM('default', 'compact', 'extended') DEFAULT 'default',
+timezone VARCHAR(50) DEFAULT 'Europe/Paris',
+system\_alerts BOOLEAN DEFAULT TRUE,
+update\_notifications BOOLEAN DEFAULT TRUE,
+message\_notifications BOOLEAN DEFAULT TRUE,
+email\_notifications BOOLEAN DEFAULT TRUE,
+push\_notifications BOOLEAN DEFAULT TRUE,
+sms\_notifications BOOLEAN DEFAULT FALSE,
+developer\_mode BOOLEAN DEFAULT FALSE,
+advanced\_stats BOOLEAN DEFAULT FALSE,
+show\_tutorials BOOLEAN DEFAULT TRUE,
+FOREIGN KEY (user\_id) REFERENCES users(id) ON DELETE CASCADE,
+UNIQUE KEY (user\_id)
+);
 
     CREATE TABLE IF NOT EXISTS categories (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -128,8 +131,6 @@ async function createTables() {
       FOREIGN KEY (piece_id) REFERENCES pieces(id),
       FOREIGN KEY (vehicule_id) REFERENCES vehicules(id)
     );
-
-   
   `;
 
   try {

@@ -5,14 +5,6 @@ const User = require("../models/User");
 const sendEmail = require("../server/utils/email");
 require("dotenv").config();
 
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" } // Le token expire après 1 heure
-  );
-};
-
 const authController = {
   // Enregistrer un nouvel utilisateur
   register: async (req, res) => {
@@ -36,7 +28,11 @@ const authController = {
         role: email === process.env.ADMIN_EMAIL ? "admin" : "user",
       });
 
-      const token = generateToken(user);
+      const token = jwt.sign(
+        { id: user.id, email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
 
       res.status(201).json({ token, userId: user.id });
     } catch (error) {
@@ -60,7 +56,11 @@ const authController = {
         return res.status(401).json({ message: "Identifiants invalides" });
       }
 
-      const token = generateToken(user);
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
 
       res.json({
         token,

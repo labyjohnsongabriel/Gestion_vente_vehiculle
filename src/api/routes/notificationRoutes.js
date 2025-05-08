@@ -7,7 +7,14 @@ const authMiddleware = require("../middleware/authMiddleware");
 router.post("/", authMiddleware, notificationController.createNotification);
 
 // ✅ Route pour récupérer les notifications d'un utilisateur
-router.get("/", authMiddleware, notificationController.getUserNotifications);
+router.get("/", (req, res) => {
+  res.status(200).json({
+    notifications: [
+      { id: 1, message: "Nouvelle commande reçue", isUnread: true },
+      { id: 2, message: "Stock mis à jour", isUnread: false },
+    ],
+  });
+});
 
 // ✅ Route pour marquer une notification comme lue
 router.put(

@@ -11,6 +11,7 @@ import {
   Typography,
   Button,
   Box,
+  Divider,
   Skeleton,
   TablePagination,
   TextField,
@@ -21,6 +22,11 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
+  Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
 import {
   Edit,
@@ -30,23 +36,27 @@ import {
   FilterList,
   Refresh,
   ShoppingCart,
+  Visibility,
+  Close,
+  Person,
+  CalendarToday,
+  AttachMoney,
+  LocalShipping,
+  Print
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import CommandeForm from "./CommandeForm";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:5000/api/commandes";
-
-// Composants stylisés premium
+// Style personnalisé
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
-    background:
-      "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
   },
   "&:hover": {
-    background:
-      "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
     transform: "scale(1.005)",
     boxShadow: theme.shadows[1],
     transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
@@ -77,6 +87,8 @@ const PremiumButton = styled(Button)(({ theme }) => ({
   transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
 }));
 
+const API_URL = "http://localhost:5000/api/commandes";
+
 const CommandeList = () => {
   const [commandes, setCommandes] = useState([]);
   const [openForm, setOpenForm] = useState(false);
@@ -86,19 +98,91 @@ const CommandeList = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedCommande, setSelectedCommande] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [details, setDetails] = useState([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Configuration des intercepteurs axios
+  useEffect(() => {
+    const requestInterceptor = axios.interceptors.request.use(config => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    const responseInterceptor = axios.interceptors.response.use(
+      response => response,
+      error => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
+
+  const getAuthToken = () => {
+    return localStorage.getItem("token");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+    Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
+  };
 
   const fetchCommandes = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
-      const response = await axios.get(API_URL);
+      
+      const response = await axios.get(API_URL, {
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`
+        }
+      });
+      
       setCommandes(response.data);
     } catch (error) {
       console.error("Erreur lors du chargement des commandes:", error);
-      Swal.fire("Erreur", "Impossible de charger les commandes", "error");
+      if (error.response?.status === 401) {
+        handleLogout();
+      } else {
+        Swal.fire("Erreur", "Impossible de charger les commandes", "error");
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+    }
+  };
+
+  const fetchCommandeDetails = async (commandeId) => {
+    try {
+      setDetailsLoading(true);
+      const response = await axios.get(`${API_URL}/${commandeId}/details`, {
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`
+        }
+      });
+      setDetails(response.data);
+    } catch (error) {
+      console.error("Erreur lors du chargement des détails:", error);
+      if (error.response?.status === 401) {
+        handleLogout();
+      } else {
+        Swal.fire("Erreur", "Impossible de charger les détails", "error");
+      }
+    } finally {
+      setDetailsLoading(false);
     }
   };
 
@@ -109,6 +193,12 @@ const CommandeList = () => {
   const handleEdit = (commande) => {
     setCommandeToEdit(commande);
     setOpenForm(true);
+  };
+
+  const handleViewDetails = async (commande) => {
+    setSelectedCommande(commande);
+    await fetchCommandeDetails(commande.id);
+    setDetailsOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -124,7 +214,11 @@ const CommandeList = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_URL}/${id}`);
+          await axios.delete(`${API_URL}/${id}`, {
+            headers: {
+              Authorization: `Bearer ${getAuthToken()}`
+            }
+          });
           fetchCommandes();
           Swal.fire({
             title: "Supprimé!",
@@ -132,9 +226,14 @@ const CommandeList = () => {
             icon: "success",
             timer: 1800,
             showConfirmButton: false,
+            timerProgressBar: true,
           });
         } catch (error) {
-          Swal.fire("Erreur", "La suppression a échoué.", "error");
+          if (error.response?.status === 401) {
+            handleLogout();
+          } else {
+            Swal.fire("Erreur", "La suppression a échoué.", "error");
+          }
         }
       }
     });
@@ -175,8 +274,11 @@ const CommandeList = () => {
             borderRadius: 4,
             overflow: "hidden",
             boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+            border: "none",
+            background: "linear-gradient(145deg, #ffffff 0%, #f9f9f9 100%)",
           }}
         >
+          {/* Header premium */}
           <Box
             sx={{
               p: 3,
@@ -187,16 +289,30 @@ const CommandeList = () => {
               gap: 3,
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
+              borderBottom: "1px solid rgba(255,255,255,0.1)",
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <ShoppingCart sx={{ fontSize: 40 }} />
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  letterSpacing: "0.5px",
+                }}
+              >
                 Gestion des Commandes
               </Typography>
             </Box>
 
-            <Box sx={{ display: "flex", gap: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 2,
+                width: { xs: "100%", sm: "auto" },
+                alignItems: "center",
+              }}
+            >
               <TextField
                 size="small"
                 placeholder="Rechercher..."
@@ -210,15 +326,41 @@ const CommandeList = () => {
                   ),
                   sx: {
                     borderRadius: 50,
+                    pl: 1.5,
                     background: "rgba(255,255,255,0.15)",
                     color: "white",
+                    "& .MuiInputBase-input::placeholder": {
+                      color: "rgba(255,255,255,0.7)",
+                    },
                   },
                 }}
-                sx={{ minWidth: 250 }}
+                sx={{
+                  flexGrow: { xs: 1, sm: 0 },
+                  minWidth: 250,
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 50,
+                    "& fieldset": {
+                      borderColor: "rgba(255,255,255,0.3)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(255,255,255,0.5)",
+                    },
+                  },
+                }}
               />
 
-              <Tooltip title="Actualiser">
-                <IconButton onClick={handleRefresh} sx={{ color: "white" }}>
+              <Tooltip title="Filtrer" arrow>
+                <IconButton sx={{ color: "white" }}>
+                  <FilterList />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Actualiser" arrow>
+                <IconButton
+                  onClick={handleRefresh}
+                  sx={{ color: "white" }}
+                  disabled={isRefreshing}
+                >
                   {isRefreshing ? (
                     <CircularProgress size={24} sx={{ color: "white" }} />
                   ) : (
@@ -230,26 +372,36 @@ const CommandeList = () => {
               <PremiumButton
                 startIcon={<Add />}
                 onClick={handleAddCommande}
-                sx={{ display: { xs: "none", sm: "flex" } }}
+                sx={{
+                  display: { xs: "none", sm: "flex" },
+                }}
               >
                 Nouvelle Commande
               </PremiumButton>
             </Box>
           </Box>
 
+          {/* Tableau premium */}
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow sx={{ background: "#3a4b6d" }}>
-              
+                <TableRow
+                  sx={{
+                    background:
+                      "linear-gradient(135deg, #3a4b6d 0%, #1a2a4a 100%)",
+                  }}
+                >
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Client
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
-                    Utilisateur
+                    Responsable
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Date
+                  </TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Statut
                   </TableCell>
                   <TableCell
                     align="right"
@@ -275,7 +427,12 @@ const CommandeList = () => {
                     <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <Box sx={{ textAlign: "center" }}>
                         <ShoppingCart
-                          sx={{ fontSize: 60, color: "text.disabled", mb: 1 }}
+                          sx={{
+                            fontSize: 60,
+                            color: "text.disabled",
+                            mb: 1,
+                            opacity: 0.5,
+                          }}
                         />
                         <Typography
                           variant="h6"
@@ -283,6 +440,13 @@ const CommandeList = () => {
                           sx={{ mb: 1 }}
                         >
                           Aucune commande trouvée
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mb: 2 }}
+                        >
+                          Essayez d'ajouter une nouvelle commande
                         </Typography>
                         <PremiumButton
                           onClick={handleAddCommande}
@@ -303,13 +467,77 @@ const CommandeList = () => {
                         in
                         mountOnEnter
                         unmountOnExit
+                        timeout={600}
                       >
-                        <TableRow>
-                      
-                          <TableCell>{commande.client_name}</TableCell>
-                          <TableCell>{commande.user_name}</TableCell>
-                          <TableCell>
+                        <TableRow
+                          sx={{
+                            "&:nth-of-type(odd)": {
+                              backgroundColor: "#f9f9f9",
+                            },
+                            "&:nth-of-type(even)": {
+                              backgroundColor: "#ffffff",
+                            },
+                            "&:hover": {
+                              backgroundColor: "#f1f1f1",
+                            },
+                          }}
+                        >
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                              }}
+                            >
+                              <Avatar
+                                sx={{ bgcolor: "#667eea", color: "white" }}
+                              >
+                                {commande.client_name?.charAt(0)}
+                              </Avatar>
+                              <Typography fontWeight={600}>
+                                {commande.client_name}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                              }}
+                            >
+                              <Avatar
+                                sx={{ bgcolor: "#4caf50", color: "white" }}
+                              >
+                                {commande.user_name?.charAt(0)}
+                              </Avatar>
+                              <Typography>{commande.user_name}</Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
                             {new Date(commande.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell sx={{ color: "#3a4b6d" }}>
+                            <Chip
+                              label={commande.statut || "En cours"}
+                              color={
+                                commande.statut === "Livrée"
+                                  ? "success"
+                                  : commande.statut === "Annulée"
+                                  ? "error"
+                                  : "warning"
+                              }
+                              size="small"
+                              sx={{
+                                borderRadius: 1,
+                                fontWeight: 600,
+                                textTransform: "capitalize",
+                                minWidth: 80,
+                                justifyContent: "center",
+                              }}
+                            />
                           </TableCell>
                           <TableCell align="right">
                             <Box
@@ -319,17 +547,46 @@ const CommandeList = () => {
                                 gap: 1,
                               }}
                             >
-                              <Tooltip title="Modifier">
+                              <Tooltip title="Voir détails" arrow>
+                                <IconButton
+                                  onClick={() => handleViewDetails(commande)}
+                                  sx={{
+                                    color: "#3a4b6d",
+                                    "&:hover": {
+                                      color: "#2196f3",
+                                      transform: "scale(1.2)",
+                                    },
+                                    transition: "all 0.3s ease",
+                                  }}
+                                >
+                                  <Visibility />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Modifier" arrow>
                                 <IconButton
                                   onClick={() => handleEdit(commande)}
+                                  sx={{
+                                    color: "#3a4b6d",
+                                    "&:hover": {
+                                      color: "#667eea",
+                                      transform: "scale(1.2)",
+                                    },
+                                    transition: "all 0.3s ease",
+                                  }}
                                 >
                                   <Edit />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Supprimer">
+                              <Tooltip title="Supprimer" arrow>
                                 <IconButton
                                   onClick={() => handleDelete(commande.id)}
-                                  sx={{ color: "#ff4444" }}
+                                  sx={{
+                                    color: "#ff4444",
+                                    "&:hover": {
+                                      transform: "scale(1.2)",
+                                    },
+                                    transition: "all 0.3s ease",
+                                  }}
                                 >
                                   <Delete />
                                 </IconButton>
@@ -340,10 +597,17 @@ const CommandeList = () => {
                       </Slide>
                     ))
                 )}
+
+                {!loading && emptyRows > 0 && (
+                  <TableRow style={{ height: 53 * emptyRows }}>
+                    <TableCell colSpan={5} />
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
 
+          {/* Pagination premium */}
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
@@ -355,18 +619,32 @@ const CommandeList = () => {
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
+            sx={{
+              borderTop: "1px solid rgba(0,0,0,0.05)",
+              "& .MuiTablePagination-toolbar": {
+                flexWrap: "wrap",
+                justifyContent: "center",
+              },
+              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
+                {
+                  color: "#3a4b6d",
+                  fontWeight: 500,
+                },
+            }}
           />
         </Paper>
 
+        {/* Bouton mobile premium */}
         <Box
           sx={{
             position: "fixed",
             bottom: 24,
             right: 24,
             display: { xs: "block", sm: "none" },
+            zIndex: 1000,
           }}
         >
-          <Tooltip title="Ajouter une commande">
+          <Tooltip title="Ajouter une commande" arrow>
             <Button
               variant="contained"
               onClick={handleAddCommande}
@@ -375,7 +653,12 @@ const CommandeList = () => {
                 width: 60,
                 height: 60,
                 minWidth: 0,
+                boxShadow: "0 10px 20px rgba(102, 126, 234, 0.3)",
                 background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                "&:hover": {
+                  transform: "scale(1.1)",
+                },
+                transition: "all 0.3s ease",
               }}
             >
               <Add sx={{ fontSize: 28 }} />
@@ -383,6 +666,313 @@ const CommandeList = () => {
           </Tooltip>
         </Box>
 
+        {/* Modal des détails */}
+        <Dialog
+          open={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          fullWidth
+          maxWidth="md"
+          PaperProps={{
+            sx: {
+              borderRadius: "16px",
+              background: "linear-gradient(145deg, #f8f9fa 0%, #ffffff 100%)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              py: 3,
+              px: 4,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <ShoppingCart sx={{ fontSize: 32 }} />
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Détails de la commande  du  {selectedCommande?.client_name}
+              </Typography>
+            </Box>
+            <Box>
+              <IconButton
+                onClick={() => window.print()}
+                sx={{ color: "white", mr: 1 }}
+              >
+                <Print />
+              </IconButton>
+              <IconButton
+                edge="end"
+                color="inherit"
+                onClick={() => setDetailsOpen(false)}
+                sx={{
+                  "&:hover": {
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                  },
+                }}
+              >
+                <Close />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+
+          <DialogContent dividers sx={{ p: 4 }}>
+            {detailsLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress size={60} />
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Informations générales
+                  </Typography>
+
+                  <Grid container spacing={3} sx={{ mb: 3 }}>
+                    <Grid item xs={12} md={6}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          mb: 2,
+                        }}
+                      >
+                        <Person color="primary" />
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            Client
+                          </Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedCommande?.client_name}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          mb: 2,
+                        }}
+                      >
+                        <Person color="primary" />
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            Responsable
+                          </Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedCommande?.user_name}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          mb: 2,
+                        }}
+                      >
+                        <CalendarToday color="primary" />
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            Date de commande
+                          </Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {new Date(
+                              selectedCommande?.created_at
+                            ).toLocaleDateString()}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          mb: 2,
+                        }}
+                      >
+                        <AttachMoney color="primary" />
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            Montant total
+                          </Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {selectedCommande?.montant?.toFixed(2)} €
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          mb: 2,
+                        }}
+                      >
+                        <LocalShipping color="primary" />
+                        <Box>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            Statut
+                          </Typography>
+                          <Chip
+                            label={selectedCommande?.statut}
+                            color={
+                              selectedCommande?.status === "Livrée"
+                                ? "success"
+                                : selectedCommande?.status === "Annulée"
+                                ? "error"
+                                : "warning"
+                            }
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        </Box>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Articles commandés
+                  </Typography>
+
+                  <TableContainer component={Paper} sx={{ boxShadow: "none" }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: "background.default" }}>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            Article
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                            Quantité
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                            Prix unitaire
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                            Total
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {details.map((detail) => (
+                          <TableRow key={detail.id}>
+                            <TableCell>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
+                              >
+                                <Avatar
+                                  sx={{
+                                    bgcolor: "primary.main",
+                                    color: "white",
+                                  }}
+                                >
+                                  {detail.piece_name?.charAt(0)}
+                                </Avatar>
+                                <Typography fontWeight={500}>
+                                  {detail.piece_name}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              {detail.quantity}
+                            </TableCell>
+                            <TableCell align="right">
+                              {detail.price?.toFixed(2)} €
+                            </TableCell>
+                            <TableCell align="right">
+                              {(detail.price * detail.quantity)?.toFixed(2)} €
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow sx={{ bgcolor: "background.default" }}>
+                          <TableCell
+                            colSpan={3}
+                            align="right"
+                            sx={{ fontWeight: 600 }}
+                          >
+                            Total général
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>
+                            {selectedCommande?.montant?.toFixed(2)} €
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+            <Button
+              onClick={() => setDetailsOpen(false)}
+              sx={{
+                borderRadius: "50px",
+                px: 3,
+                textTransform: "none",
+              }}
+            >
+              Fermer
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Print />}
+              onClick={() => window.print()}
+              sx={{
+                borderRadius: "50px",
+                px: 3,
+                textTransform: "none",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+            >
+              Imprimer
+            </Button>
+          </DialogActions>
+        </Dialog>
+        {/* Modal du formulaire */}
         <CommandeForm
           open={openForm}
           onClose={() => setOpenForm(false)}

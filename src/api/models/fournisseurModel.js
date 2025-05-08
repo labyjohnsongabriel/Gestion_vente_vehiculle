@@ -14,17 +14,23 @@ const Fournisseur = {
   },
 
   create: async (data) => {
-    const { nom, adresse, telephone, email } = data;
+    const { nom, adresse, telephone, email, date_ajout } = data;
     const query =
-      "INSERT INTO fournisseurs (nom, adresse, telephone, email , date_ajout) VALUES (?, ?, ?, ?)";
-    const [result] = await db.query(query, [nom, adresse, telephone, email, date_ajout]);
+      "INSERT INTO fournisseurs (nom, adresse, telephone, email, date_ajout) VALUES (?, ?, ?, ?, ?)";
+    const [result] = await db.query(query, [
+      nom,
+      adresse,
+      telephone,
+      email,
+      date_ajout,
+    ]);
     return result.insertId;
   },
 
   update: async (id, data) => {
-    const { nom, adresse, telephone, email } = data;
+    const { nom, adresse, telephone, email, date_ajout } = data;
     const query =
-      "UPDATE fournisseurs SET nom = ?, adresse = ?, telephone = ?, email = ? date_ajout=?  WHERE id = ?";
+      "UPDATE fournisseurs SET nom = ?, adresse = ?, telephone = ?, email = ?, date_ajout = ? WHERE id = ?";
     const [result] = await db.query(query, [
       nom,
       adresse,

@@ -1,75 +1,62 @@
-const db = require("../config/db");
+const User = require("../models/User"); // Assurez-vous que le chemin est correct
+const bcrypt = require("bcryptjs");
 
-// ✅ Récupérer tous les utilisateurs
-exports.getAllUsers = async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      "SELECT id, firstName, lastName, email, role FROM users"
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(
-      "Erreur lors de la récupération des utilisateurs :",
-      err.message
-    );
-    res
-      .status(500)
-      .json({
-        error: "Erreur serveur lors de la récupération des utilisateurs.",
-      });
-  }
-};
-
-// ✅ Récupérer les informations du profil
-exports.getProfile = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const [rows] = await db.query(
-      "SELECT id, firstName, lastName, email FROM users WHERE id = ?",
-      [userId]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "Utilisateur non trouvé." });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// ✅ Mettre à jour le profil
 exports.updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, email } = req.body;
+    const { firstName, lastName, email, password, newPassword } = req.body;
     const userId = req.user.id;
 
-    const [result] = await db.query(
-      "UPDATE users SET firstName = ?, lastName = ?, email = ? WHERE id = ?",
-      [firstName, lastName, email, userId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Utilisateur non trouvé." });
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
     }
 
-    res.json({ message: "Profil mis à jour avec succès." });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    user.firstName = firstName || user.firstName;
+    user.lastName = lastName || user.lastName;
+    user.email = email || user.email;
+
+    if (password && newPassword) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res
+          .status(400)
+          .json({ message: "Mot de passe actuel incorrect" });
+      }
+      user.password = await bcrypt.hash(newPassword, 12);
+    }
+
+    if (req.file) {
+      user.avatar = `/uploads/avatars/${req.file.filename}`;
+    }
+
+    await user.save();
+
+    const userData = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      avatar: user.avatar,
+      isAdmin: user.isAdmin,
+      createdAt: user.createdAt,
+    };
+
+    res.json(userData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-// ✅ Mettre à jour l'avatar
-exports.updateAvatar = async (req, res) => {
+exports.getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const avatarPath = req.file.path;
-
-    await db.query("UPDATE users SET avatar = ? WHERE id = ?", [
-      avatarPath,
-      userId,
-    ]);
-    res.json({ message: "Avatar mis à jour avec succès.", avatar: avatarPath });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 };

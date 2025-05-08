@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, memo } from "react";
 import {
   Drawer,
   List,
@@ -21,7 +21,6 @@ import {
   SyncAlt as SyncIcon,
   Settings as SettingsIcon,
   AccountCircle as AccountIcon,
-  Error as ErrorIcon,
   ExpandLess,
   ExpandMore,
   BarChart as BarChartIcon,
@@ -39,13 +38,18 @@ import {
 import { Link } from "react-router-dom";
 import { useTheme, styled } from "@mui/material/styles";
 
+
 const PremiumDrawer = styled(Drawer)(({ theme }) => ({
   "& .MuiDrawer-paper": {
-    width: 310,
-    background: "linear-gradient(180deg, #3a5169 0%, #2a2a4a 100%)",
+    width: 309,
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     color: theme.palette.common.white,
     borderRight: "none",
-    boxShadow: "5px 0 15px rgba(0,0,0,0.1)",
+    borderRadius: "1px", // Ajoutez cette ligne pour le border-radius
+    boxShadow: "1px 0 5px rgba(77, 19, 169, 0.1)",
+    overflowX: "hidden",
+    paddingLeft: "trasparent",
+    paddingRight: "0px",
     transition: theme.transitions.create("width", {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.enteringScreen,
@@ -58,7 +62,6 @@ const PremiumDrawer = styled(Drawer)(({ theme }) => ({
 
 const PremiumListItem = styled(ListItemButton)(({ theme }) => ({
   margin: "4px 8px",
-
   transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
   "&:hover": {
     background: "rgba(10, 8, 8, 0.15)",
@@ -67,8 +70,8 @@ const PremiumListItem = styled(ListItemButton)(({ theme }) => ({
   },
   "&.Mui-selected": {
     background:
-      "linear-gradient(90deg, rgba(47, 75, 207, 0.3) 0%, rgba(138,95,182,0.3) 100%)",
-    borderLeft: "4px solid #7c8dee",
+      "linear-gradient(90deg, rgba(14, 32, 126, 0.3) 0%, rgba(138,95,182,0.3) 100%)",
+    borderLeft: "4px solid #142dbb",
   },
 }));
 
@@ -86,121 +89,125 @@ const PremiumSubListItem = styled(ListItemButton)(({ theme }) => ({
   },
 }));
 
-export const Sidebar = ({ open, onClose }) => {
+// Menu items déplacés à l'extérieur du composant pour éviter les recréations inutiles
+const MENU_ITEMS = [
+  {
+    text: "Tableau de bord",
+    icon: <DashboardIcon sx={{ color: "#6fd1ff" }} />,
+    path: "/",
+    subItems: [
+      {
+        text: "Statistiques",
+        icon: <BarChartIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
+        path: "/statistics",
+      },
+      {
+        text: "Rapports",
+        icon: <AssessmentIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
+        path: "/dashboard",
+      },
+    ],
+  },
+  {
+    text: "Clients",
+    icon: <PeopleIcon sx={{ color: "#81c784" }} />,
+    path: "/clients",
+  },
+  {
+    text: "Fournisseurs",
+    icon: <StoreIcon sx={{ color: "#ffb74d" }} />,
+    path: "/fournisseurs",
+  },
+  {
+    text: "Commandes",
+    icon: <ReceiptIcon sx={{ color: "#ba68c8" }} />,
+    path: "/commandes",
+  },
+  {
+    text: "Factures",
+    icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
+    path: "/factures",
+  },
+  {
+    text: "Stocks",
+    icon: <InventoryIcon sx={{ color: "#9575cd" }} />,
+    path: "/stocks",
+  },
+  {
+    text: "Pièces",
+    icon: <BuildIcon sx={{ color: "#7986cb" }} />,
+    path: "/pieces",
+  },
+  {
+    text: "Catégories",
+    icon: <CategoryIcon sx={{ color: "#4db6ac" }} />,
+    path: "/categorie",
+  },
+  {
+    text: "Véhicules",
+    icon: <CarIcon sx={{ color: "#ef9a9a" }} />,
+    path: "/vehicules",
+  },
+  {
+    text: "Pièces Véhicule",
+    icon: <BuildIcon sx={{ color: "#7986cb" }} />,
+    path: "/piece-vehicule",
+  },
+  {
+    text: "Intégrations",
+    icon: <SyncIcon sx={{ color: "#90a4ae" }} />,
+    path: "/integrations",
+  },
+  {
+    text: "Paramètres",
+    icon: <SettingsIcon sx={{ color: "#cfd8dc" }} />,
+    path: "/setting",
+    subItems: [
+      {
+        text: "Sécurité",
+        icon: <SecurityIcon sx={{ color: "#cfd8dc", fontSize: "1.2rem" }} />,
+        path: "/settings",
+      },
+    ],
+  },
+  {
+    text: "Compte",
+    icon: <AccountIcon sx={{ color: "#f48fb1" }} />,
+    path: "/account",
+    subItems: [
+      {
+        text: "Profil",
+        icon: <AccountIcon sx={{ color: "#f48fb1", fontSize: "1.2rem" }} />,
+        path: "/account",
+      },
+    ],
+  },
+  {
+    text: "Feedback",
+    icon: <FeedbackIcon sx={{ color: "#fff176" }} />,
+    path: "/feedback",
+  },
+];
+
+// Utilisation de memo pour éviter les re-rendus inutiles
+export const Sidebar = memo(({ open, onClose }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [activeMenu, setActiveMenu] = useState(null);
   const [selectedItem, setSelectedItem] = useState("Tableau de bord");
 
-  const toggleMenu = (menu) => {
-    setActiveMenu(activeMenu === menu ? null : menu);
-  };
+  // Utilisation de useCallback pour éviter les recréations de fonctions
+  const toggleMenu = useCallback((menu) => {
+    setActiveMenu((prevActiveMenu) => (prevActiveMenu === menu ? null : menu));
+  }, []);
 
-  const handleItemClick = (text) => {
-    setSelectedItem(text);
-    if (isMobile) onClose();
-  };
-
-  const menuItems = [
-    {
-      text: "Tableau de bord",
-      icon: <DashboardIcon sx={{ color: "#6fd1ff" }} />,
-      path: "/",
-      subItems: [
-        {
-          text: "Statistiques",
-          icon: <BarChartIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
-          path: "/statistics",
-        },
-        {
-          text: "Rapports",
-          icon: (
-            <AssessmentIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />
-          ),
-          path: "/reports",
-        },
-      ],
+  const handleItemClick = useCallback(
+    (text) => {
+      setSelectedItem(text);
+      if (isMobile) onClose();
     },
-    {
-      text: "Clients",
-      icon: <PeopleIcon sx={{ color: "#81c784" }} />,
-      path: "/clients",
-    },
-    {
-      text: "Fournisseurs",
-      icon: <StoreIcon sx={{ color: "#ffb74d" }} />,
-      path: "/fournisseurs",
-    },
-    {
-      text: "Commandes",
-      icon: <ReceiptIcon sx={{ color: "#ba68c8" }} />,
-      path: "/commandes",
-    },
-    {
-      text: "Factures",
-      icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
-      path: "/factures",
-    },
-    {
-      text: "Stocks",
-      icon: <InventoryIcon sx={{ color: "#9575cd" }} />,
-      path: "/stocks",
-    },
-    {
-      text: "Pièces",
-      icon: <BuildIcon sx={{ color: "#7986cb" }} />,
-      path: "/pieces",
-    },
-    {
-      text: "Catégories",
-      icon: <CategoryIcon sx={{ color: "#4db6ac" }} />,
-      path: "/categorie",
-    },
-    {
-      text: "Véhicules",
-      icon: <CarIcon sx={{ color: "#ef9a9a" }} />,
-      path: "/vehicules",
-    },
-    {
-      text: "Pièces Véhicule",
-      icon: <BuildIcon sx={{ color: "#7986cb" }} />,
-      path: "/piece-vehicule",
-    },
-    {
-      text: "Intégrations",
-      icon: <SyncIcon sx={{ color: "#90a4ae" }} />,
-      path: "/integrations",
-    },
-    {
-      text: "Paramètres",
-      icon: <SettingsIcon sx={{ color: "#cfd8dc" }} />,
-      path: "/setting",
-      subItems: [
-        {
-          text: "Sécurité",
-          icon: <SecurityIcon sx={{ color: "#cfd8dc", fontSize: "1.2rem" }} />,
-          path: "/settings",
-        },
-      ],
-    },
-    {
-      text: "Compte",
-      icon: <AccountIcon sx={{ color: "#f48fb1" }} />,
-      path: "/account",
-      subItems: [
-        {
-          text: "Profil",
-          icon: <AccountIcon sx={{ color: "#f48fb1", fontSize: "1.2rem" }} />,
-          path: "/account",
-        },
-      ],
-    },
-    {
-      text: "Feedback",
-      icon: <FeedbackIcon sx={{ color: "#fff176" }} />,
-      path: "/feedback",
-    },
-  ];
+    [isMobile, onClose]
+  );
 
   return (
     <PremiumDrawer
@@ -253,10 +260,9 @@ export const Sidebar = ({ open, onClose }) => {
               variant="h6"
               sx={{
                 fontWeight: 700,
-                background: "linear-gradient(45deg, #7c8dee, #8a5fb6)",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                color: "transparent",
+                backgroundClip: "text",      color: "transparent",
               }}
             >
               AutoPartsPro
@@ -265,7 +271,7 @@ export const Sidebar = ({ open, onClose }) => {
               variant="caption"
               sx={{
                 color: "rgba(255,255,255,0.8)",
-                fontSize: "0.7rem",
+                fontSize: ".9rem",
                 letterSpacing: "0.5px",
               }}
             >
@@ -283,6 +289,7 @@ export const Sidebar = ({ open, onClose }) => {
                 background: "rgba(255,255,255,0.2)",
               },
             }}
+            aria-label="Fermer le menu"
           >
             <ChevronLeft />
           </IconButton>
@@ -292,7 +299,7 @@ export const Sidebar = ({ open, onClose }) => {
       <Divider sx={{ borderColor: "rgba(255,255,255,0.2)", my: 1 }} />
 
       <List sx={{ p: 1 }}>
-        {menuItems.map((item) => (
+        {MENU_ITEMS.map((item) => (
           <React.Fragment key={item.text}>
             <PremiumListItem
               selected={selectedItem === item.text}
@@ -305,6 +312,7 @@ export const Sidebar = ({ open, onClose }) => {
               }}
               component={!item.subItems ? Link : "div"}
               to={!item.subItems ? item.path : undefined}
+              aria-label={item.text}
             >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText
@@ -337,6 +345,7 @@ export const Sidebar = ({ open, onClose }) => {
                       component={Link}
                       to={subItem.path}
                       onClick={() => handleItemClick(subItem.text)}
+                      aria-label={subItem.text}
                     >
                       <ListItemIcon>{subItem.icon}</ListItemIcon>
                       <ListItemText
@@ -382,4 +391,7 @@ export const Sidebar = ({ open, onClose }) => {
       </Box>
     </PremiumDrawer>
   );
-};
+});
+
+// Ajout du displayName pour faciliter le débogage
+Sidebar.displayName = "Sidebar";

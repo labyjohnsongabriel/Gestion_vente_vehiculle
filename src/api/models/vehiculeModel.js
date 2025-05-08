@@ -1,33 +1,78 @@
-const db = require('../config/db');
+const db = require("../config/db"); // mysql2/promise
 
 const Vehicule = {
-    getAll: (callback) => {
-      const sql = 'SELECT * FROM vehicules';
-      db.query(sql, callback);
-    },
-    getById: (id, callback) => {
-        const sql = 'SELECT * FROM vehicules WHERE id = ?';
-        db.query(sql, [id], callback);
-      },
-    
-  create: (data, callback) => {
-    const { marque , modele, immatriculation, annee, kilometrage } = data;
-    const sql = `INSERT INTO vehicules (marque, modele, immatriculation, annee, kilometrage, )
-                 VALUES (?, ?, ?, ?, ?, ?)`;
-    db.query(sql, [marque, modele, immatriculation, annee, kilometrage], callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM vehicules");
+    return rows;
   },
 
-   update: (id, data, callback) => {
-    const { marque , modele, immatriculation, annee, kilometrage } = data;
-      const sql = `UPDATE vehicules SET marque= ?, modele = ?, immatriculation = ?, annee = ?, kilometrage = ?
-                   WHERE id = ?`;
-      db.query(sql, [marque, modele, immatriculation, annee, kilometrage], callback);
-     },           
-    
+  getById: async (id) => {
+    const [rows] = await db.query("SELECT * FROM vehicules WHERE id = ?", [id]);
+    return rows[0];
+  },
 
-    delete: (id, callback) => {
-        db.query("DELETE FROM vehicules WHERE id = ?", [id], callback);
-      },
-    };
+  create: async (data) => {
+    const {
+      marque,
+      modele,
+      immatriculation,
+      annee,
+      kilometrage,
+      type,
+      status,
+      date_ajout,
+    } = data;
+    const sql = `
+      INSERT INTO vehicules (marque, modele, immatriculation, annee, kilometrage, type, status, date_ajout)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const [result] = await db.query(sql, [
+      marque,
+      modele,
+      immatriculation,
+      annee,
+      kilometrage,
+      type,
+      status,
+      date_ajout,
+    ]);
+    return result;
+  },
 
-    module.exports = Vehicule;
+  update: async (id, data) => {
+    const {
+      marque,
+      modele,
+      immatriculation,
+      annee,
+      kilometrage,
+      type,
+      status,
+      date_ajout,
+    } = data;
+    const sql = `
+      UPDATE vehicules 
+      SET marque = ?, modele = ?, immatriculation = ?, annee = ?, kilometrage = ?, type = ?, status = ?, date_ajout = ?
+      WHERE id = ?
+    `;
+    const [result] = await db.query(sql, [
+      marque,
+      modele,
+      immatriculation,
+      annee,
+      kilometrage,
+      type,
+      status,
+      date_ajout,
+      id,
+    ]);
+    return result;
+  },
+
+  delete: async (id) => {
+    const [result] = await db.query("DELETE FROM vehicules WHERE id = ?", [id]);
+    return result;
+  },
+};
+
+module.exports = Vehicule;

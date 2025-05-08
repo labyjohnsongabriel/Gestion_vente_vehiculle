@@ -1,24 +1,37 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import PropTypes from "prop-types"; // Ajout de l'import manquant
 import App from "./App";
 import { BrowserRouter } from "react-router-dom";
-import { SidebarProvider } from "./components/context/SidebarContext"; // Chemin corrigé
-import { ThemeProvider } from "./components/context/ThemeContext"; // Chemin corrigé
-import { UserProvider } from "./components/context/UserContext"; // Chemin corrigé
-import { AuthProvider } from "./components/context/AuthContext"; // ou le bon chemin
+import { ThemeProvider } from "./components/context/ThemeContext";
+import { SidebarProvider } from "./components/context/SidebarContext";
+import { UserProvider } from "./components/context/UserContext";
+import { AuthProvider } from "./components/context/AuthContext";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+// Création de la racine React
+const root = ReactDOM.createRoot(document.getElementById("root"));
+
+// Composant Providers qui encapsule tous les contextes
+const AppProviders = ({ children }) => (
+  <BrowserRouter>
+    <ThemeProvider>
+      <AuthProvider>
+        <UserProvider>
+          <SidebarProvider>{children}</SidebarProvider>
+        </UserProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  </BrowserRouter>
+);
+
+AppProviders.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <SidebarProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <UserProvider>
-              <App />
-            </UserProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SidebarProvider>
-    </BrowserRouter>
+    <AppProviders>
+      <App />
+    </AppProviders>
   </React.StrictMode>
 );
