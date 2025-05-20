@@ -16,16 +16,20 @@ import {
   TextField,
   InputAdornment,
   Fade,
-  Slide,
   Avatar,
   Chip,
   Tooltip,
   CircularProgress,
-
+  Tabs,
+  Tab,
+  Badge,
+  Menu,
+  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
 } from "@mui/material";
 import {
   Edit,
@@ -34,19 +38,22 @@ import {
   Add,
   Refresh,
   Inventory,
-  Close,
-  Print,
   FilterList,
+  Warning,
+  Notifications,
+  History,
+  ArrowUpward,
+  ArrowDownward,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import StockForm from "./StockForm";
+import StockHistory from "./StockHistory";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../components/context/AuthContext";
 
 const API_URL = "http://localhost:5000/api/stocks";
 
-// Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
     background:
@@ -59,55 +66,79 @@ const PremiumTableRow = styled(TableRow)(({ theme }) => ({
     boxShadow: theme.shadows[1],
     transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
   },
-  "&.MuiTableRow-root": {
-    opacity: 0,
-    animation: "$fadeInRow 0.6s ease forwards",
-  },
-  "@keyframes fadeInRow": {
-    "0%": { opacity: 0, transform: "translateX(-30px)" },
-    "100%": { opacity: 1, transform: "translateX(0)" },
-  },
-}));
-
-const PremiumButton = styled(Button)(({ theme }) => ({
-  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  color: "white",
-  borderRadius: "50px",
-  padding: "12px 28px",
-  boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-  textTransform: "none",
-  fontWeight: 500,
-  letterSpacing: "0.5px",
-  "&:hover": {
-    boxShadow: "0 8px 25px rgba(0,0,0,0.2)",
-    transform: "translateY(-2px)",
-  },
-  transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
 }));
 
 const StockList = () => {
+  const { user } = useAuth();
   const [stocks, setStocks] = useState([]);
   const [openForm, setOpenForm] = useState(false);
   const [stockToEdit, setStockToEdit] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState("all");
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [openHistory, setOpenHistory] = useState(false);
+  const [selectedStockId, setSelectedStockId] = useState(null);
+  const [stockHistory, setStockHistory] = useState([]);
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [currentAdjustment, setCurrentAdjustment] = useState({
+    stockId: null,
+    change: 0,
+    reason: "",
+    currentQuantity: 0,
+  });
 
   const fetchStocks = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
       const response = await axios.get(API_URL);
-      setStocks(response.data);
+
+      const stocksData = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+
+      const validatedStocks = stocksData.map((stock, idx) => ({
+        id: stock.id || `temp-${idx}-${Date.now()}`,
+        piece_id: stock.piece_id || "",
+        piece_name: stock.piece_name || stock.piece?.name || "Pièce sans nom",
+        quantity: Number(stock.quantity) || 0,
+        min_quantity: Number(stock.min_quantity) || 5,
+        last_updated: stock.last_updated || new Date().toISOString(),
+      }));
+
+      setStocks(validatedStocks);
     } catch (error) {
       console.error("Erreur lors du chargement des stocks:", error);
-      Swal.fire("Erreur", "Impossible de charger les stocks", "error");
+      Swal.fire({
+        title: "Erreur",
+        text: "Impossible de charger les stocks",
+        icon: "error",
+      });
+      setStocks([]);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+    }
+  };
+
+  const fetchStockHistory = async (stockId) => {
+    try {
+      const response = await axios.get(`${API_URL}/${stockId}/history`);
+      setStockHistory(response.data || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement de l'historique:", error);
+      setStockHistory([]);
+      Swal.fire({
+        title: "Erreur",
+        text: "Impossible de charger l'historique",
+        icon: "error",
+      });
     }
   };
 
@@ -115,95 +146,100 @@ const StockList = () => {
     fetchStocks();
   }, []);
 
-  const handleEdit = (stock) => {
-    setStockToEdit(stock);
-    setOpenForm(true);
+  const handleAdjustClick = (stockId, initialChange = 0, currentQuantity) => {
+    setCurrentAdjustment({
+      stockId,
+      change: initialChange,
+      reason: "",
+      currentQuantity,
+    });
+    setAdjustmentDialogOpen(true);
+  };
+
+  const confirmAdjustment = async () => {
+    try {
+      await axios.patch(`${API_URL}/${currentAdjustment.stockId}/adjust`, {
+        adjustment: currentAdjustment.change,
+        reason: currentAdjustment.reason,
+      });
+      await fetchStocks();
+      setAdjustmentDialogOpen(false);
+      Swal.fire({
+        title: "Succès",
+        text: "Stock ajusté avec succès",
+        icon: "success",
+        timer: 1500,
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'ajustement du stock:", error);
+      Swal.fire({
+        title: "Erreur",
+        text: "Échec de l'ajustement du stock",
+        icon: "error",
+      });
+    }
   };
 
   const handleDelete = async (id) => {
-    Swal.fire({
+    const result = await Swal.fire({
       title: "Confirmer la suppression",
-      html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer ce stock? <br/><small>Cette action est irréversible.</small></div>`,
+      text: "Voulez-vous vraiment supprimer ce stock?",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ff4444",
       cancelButtonColor: "#9e9e9e",
       confirmButtonText: "Oui, supprimer",
       cancelButtonText: "Annuler",
-      background: "#ffffff",
-      backdrop: `
-        rgba(0,0,0,0.6)
-        url("/images/trash-animation.gif")
-        left top
-        no-repeat
-      `,
-      customClass: {
-        popup: "animated pulse",
-        confirmButton: "swal-confirm-btn",
-      },
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await axios.delete(`${API_URL}/${id}`);
-          fetchStocks();
-          Swal.fire({
-            title: "Supprimé!",
-            text: "Le stock a été supprimé avec succès.",
-            icon: "success",
-            timer: 1800,
-            showConfirmButton: false,
-            timerProgressBar: true,
-            background: "#4caf50",
-            color: "white",
-          });
-        } catch (error) {
-          Swal.fire("Erreur", "La suppression a échoué.", "error");
-        }
-      }
     });
+
+    if (result.isConfirmed) {
+      try {
+        await axios.delete(`${API_URL}/${id}`);
+        await fetchStocks();
+        Swal.fire({
+          title: "Supprimé!",
+          text: "Le stock a été supprimé.",
+          icon: "success",
+          timer: 1500,
+        });
+      } catch (error) {
+        console.error("Erreur lors de la suppression:", error);
+        Swal.fire({
+          title: "Erreur",
+          text: "La suppression a échoué",
+          icon: "error",
+        });
+      }
+    }
   };
 
-  const handleAddStock = () => {
-    setStockToEdit(null);
-    setOpenForm(true);
-  };
+  const filteredStocks = stocks.filter((stock) => {
+    if (!stock) return false;
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchStocks();
-  };
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch =
+      stock.piece_name?.toLowerCase().includes(searchLower) ||
+      stock.quantity.toString().includes(searchTerm) ||
+      stock.id?.toLowerCase().includes(searchLower);
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    setPage(0);
-  };
+    const matchesViewMode =
+      viewMode === "all" ||
+      (viewMode === "low" && stock.quantity <= stock.min_quantity) ||
+      (viewMode === "out" && stock.quantity <= 0);
 
-  const filteredStocks = stocks.filter((stock) =>
-    Object.values(stock).some(
-      (value) =>
-        value &&
-        value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+    return matchesSearch && matchesViewMode;
+  });
 
-  const emptyRows =
-    rowsPerPage -
-    Math.min(rowsPerPage, filteredStocks.length - page * rowsPerPage);
+  const lowStockCount = stocks.filter(
+    (s) => s.quantity <= s.min_quantity && s.quantity > 0
+  ).length;
+  const outOfStockCount = stocks.filter((s) => s.quantity <= 0).length;
 
   return (
     <Fade in timeout={600}>
       <Box sx={{ p: { xs: 1, sm: 3 } }}>
-        <Paper
-          sx={{
-            borderRadius: 4,
-            overflow: "hidden",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-            border: "none",
-            background: "linear-gradient(145deg, #ffffff 0%, #f9f9f9 100%)",
-          }}
-          className="premium-paper"
-        >
-          {/* Header premium */}
+        <Paper sx={{ borderRadius: 4, overflow: "hidden", boxShadow: 3 }}>
+          {/* Header */}
           <Box
             sx={{
               p: 3,
@@ -214,35 +250,21 @@ const StockList = () => {
               gap: 3,
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
-              borderBottom: "1px solid rgba(255,255,255,0.1)",
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Inventory sx={{ fontSize: 40 }} />
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                }}
-              >
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 Gestion des Stocks
               </Typography>
             </Box>
 
-            <Box
-              sx={{
-                display: "flex",
-                gap: 2,
-                width: { xs: "100%", sm: "auto" },
-                alignItems: "center",
-              }}
-            >
+            <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
               <TextField
                 size="small"
                 placeholder="Rechercher..."
                 value={searchTerm}
-                onChange={handleSearch}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -251,39 +273,28 @@ const StockList = () => {
                   ),
                   sx: {
                     borderRadius: 50,
-                    pl: 1.5,
                     background: "rgba(255,255,255,0.15)",
                     color: "white",
-                    "& .MuiInputBase-input::placeholder": {
+                    "& input::placeholder": {
                       color: "rgba(255,255,255,0.7)",
-                    },
-                  },
-                }}
-                sx={{
-                  flexGrow: { xs: 1, sm: 0 },
-                  minWidth: 250,
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 50,
-                    "& fieldset": {
-                      borderColor: "rgba(255,255,255,0.3)",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(255,255,255,0.5)",
                     },
                   },
                 }}
               />
 
-              <Tooltip title="Filtrer" arrow>
-                <IconButton sx={{ color: "white" }}>
+              <Tooltip title="Filtrer">
+                <IconButton
+                  sx={{ color: "white" }}
+                  onClick={(e) => setAnchorEl(e.currentTarget)}
+                >
                   <FilterList />
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Actualiser" arrow>
+              <Tooltip title="Actualiser">
                 <IconButton
-                  onClick={handleRefresh}
                   sx={{ color: "white" }}
+                  onClick={fetchStocks}
                   disabled={isRefreshing}
                 >
                   {isRefreshing ? (
@@ -294,20 +305,98 @@ const StockList = () => {
                 </IconButton>
               </Tooltip>
 
-              <PremiumButton
-                startIcon={<Add />}
-                onClick={handleAddStock}
-                sx={{
-                  display: { xs: "none", sm: "flex" },
-               
-                }}
-              >
-                Nouveau Stock
-              </PremiumButton>
+              {user?.role === "professionnel" && (
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => {
+                    setStockToEdit(null);
+                    setOpenForm(true);
+                  }}
+                  sx={{
+                    background:
+                      "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
+                    color: "white",
+                    borderRadius: "50px",
+                    display: { xs: "none", sm: "flex" },
+                  }}
+                >
+                  Nouveau Stock
+                </Button>
+              )}
             </Box>
           </Box>
 
-          {/* Tableau premium */}
+          {/* Filtre Menu */}
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={() => setAnchorEl(null)}
+          >
+            <MenuItem
+              onClick={() => {
+                setViewMode("all");
+                setAnchorEl(null);
+              }}
+            >
+              Tous les stocks
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setViewMode("low");
+                setAnchorEl(null);
+              }}
+            >
+              <Badge
+                badgeContent={lowStockCount}
+                color="warning"
+                sx={{ mr: 2 }}
+              >
+                Stock faible
+              </Badge>
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setViewMode("out");
+                setAnchorEl(null);
+              }}
+            >
+              <Badge
+                badgeContent={outOfStockCount}
+                color="error"
+                sx={{ mr: 2 }}
+              >
+                Rupture de stock
+              </Badge>
+            </MenuItem>
+          </Menu>
+
+          {/* Tabs */}
+          <Tabs
+            value={viewMode}
+            onChange={(e, newValue) => setViewMode(newValue)}
+            sx={{ px: 2, pt: 2 }}
+          >
+            <Tab label="Tous" value="all" />
+            <Tab
+              label={
+                <Badge badgeContent={lowStockCount} color="warning">
+                  Stock faible
+                </Badge>
+              }
+              value="low"
+            />
+            <Tab
+              label={
+                <Badge badgeContent={outOfStockCount} color="error">
+                  Rupture
+                </Badge>
+              }
+              value="out"
+            />
+          </Tabs>
+
+          {/* Table */}
           <TableContainer>
             <Table>
               <TableHead>
@@ -318,10 +407,7 @@ const StockList = () => {
                   }}
                 >
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
-                    ID Pièce
-                  </TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
-                    Nom de la Pièce
+                    Pièce
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Quantité
@@ -329,65 +415,47 @@ const StockList = () => {
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
                   </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ color: "white", fontWeight: 600 }}
-                  >
-                    Actions
-                  </TableCell>
+                  {user?.role === "professionnel" && (
+                    <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                      Actions
+                    </TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
-                  [...Array(rowsPerPage)].map((_, index) => (
-                    <PremiumTableRow key={index}>
-                      {[...Array(5)].map((_, cellIndex) => (
-                        <TableCell key={cellIndex}>
-                          <Skeleton
-                            animation="wave"
-                            height={40}
-                            className="premium-skeleton"
-                          />
+                  [...Array(rowsPerPage)].map((_, idx) => (
+                    <PremiumTableRow key={`skeleton-${idx}`}>
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
+                      {user?.role === "professionnel" && (
+                        <TableCell>
+                          <Skeleton animation="wave" />
                         </TableCell>
-                      ))}
+                      )}
                     </PremiumTableRow>
                   ))
                 ) : filteredStocks.length === 0 ? (
                   <PremiumTableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell
+                      colSpan={user?.role === "professionnel" ? 4 : 3}
+                      align="center"
+                      sx={{ py: 6 }}
+                    >
                       <Box sx={{ textAlign: "center" }}>
                         <Inventory
-                          sx={{
-                            fontSize: 60,
-                            color: "text.disabled",
-                            mb: 1,
-                            opacity: 0.5,
-                          }}
+                          sx={{ fontSize: 60, color: "text.disabled", mb: 1 }}
                         />
-                        <Typography
-                          variant="h6"
-                          color="text.secondary"
-                          sx={{ mb: 1 }}
-                        >
+                        <Typography variant="h6" color="text.secondary">
                           Aucun stock trouvé
                         </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ mb: 2 }}
-                        >
-                          Essayez d'ajouter un nouveau stock
-                        </Typography>
-                        <PremiumButton
-                          onClick={handleAddStock}
-                          startIcon={<Add />}
-                          sx={{
-                            background:
-                              "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
-                          }}
-                        >
-                          Ajouter Stock
-                        </PremiumButton>
                       </Box>
                     </TableCell>
                   </PremiumTableRow>
@@ -395,117 +463,156 @@ const StockList = () => {
                   filteredStocks
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((stock) => (
-                      <Slide
-                        key={stock.id}
-                        direction="up"
-                        in
-                        mountOnEnter
-                        unmountOnExit
-                        timeout={600}
-                      >
-                        <TableRow
-                          sx={{
-                            "&:nth-of-type(odd)": {
-                              backgroundColor: "#f9f9f9",
-                            },
-                            "&:nth-of-type(even)": {
-                              backgroundColor: "#ffffff",
-                            },
-                            "&:hover": {
-                              backgroundColor: "#f1f1f1",
-                            },
-                          }}
-                        >
-                          <TableCell sx={{ color: "#2E7D32", fontWeight: 500 }}>
-                            #{stock.piece_id}
-                          </TableCell>
-                          <TableCell sx={{ color: "#2E7D32" }}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 2,
-                              }}
-                            >
-                              <Avatar
-                                sx={{ bgcolor: "#3a4b6d", color: "white" }}
-                              >
-                                {stock.piece_name?.charAt(0) || "P"}
-                              </Avatar>
+                      <PremiumTableRow key={stock.id}>
+                        <TableCell>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                          >
+                            <Avatar sx={{ bgcolor: "#3a4b6d", color: "white" }}>
+                              {stock.piece_name?.charAt(0)?.toUpperCase() ||
+                                "P"}
+                            </Avatar>
+                            <Box>
                               <Typography fontWeight={600}>
-                                {stock.piece_name || "Pièce sans nom"}
+                                {stock.piece_name}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                ID: {stock.id}
                               </Typography>
                             </Box>
-                          </TableCell>
-                          <TableCell sx={{ color: "#3a4b6d" }}>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            fontWeight={600}
+                            color={
+                              stock.quantity <= 0
+                                ? "error.main"
+                                : stock.quantity <= stock.min_quantity
+                                ? "warning.main"
+                                : "primary.main"
+                            }
+                          >
                             {stock.quantity}
-                          </TableCell>
+                            {stock.min_quantity > 0 && (
+                              <Typography
+                                component="span"
+                                variant="caption"
+                                ml={1}
+                                color="text.secondary"
+                              >
+                                (min: {stock.min_quantity})
+                              </Typography>
+                            )}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={
+                              stock.quantity <= 0
+                                ? "Épuisé"
+                                : stock.quantity <= stock.min_quantity
+                                ? "Stock faible"
+                                : "Disponible"
+                            }
+                            color={
+                              stock.quantity <= 0
+                                ? "error"
+                                : stock.quantity <= stock.min_quantity
+                                ? "warning"
+                                : "success"
+                            }
+                            icon={
+                              stock.quantity <= stock.min_quantity ? (
+                                <Warning fontSize="small" />
+                              ) : null
+                            }
+                          />
+                        </TableCell>
+                        {user?.role === "professionnel" && (
                           <TableCell>
-                            <Chip
-                              label={
-                                stock.quantity > 0 ? "Disponible" : "Épuisé"
-                              }
-                              color={stock.quantity > 0 ? "success" : "error"}
-                              sx={{
-                                fontWeight: 600,
-                                borderRadius: 1,
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 1,
-                              }}
-                            >
-                              <Tooltip title="Modifier" arrow>
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                              <Tooltip title="Historique">
                                 <IconButton
-                                  onClick={() => handleEdit(stock)}
-                                  sx={{
-                                    color: "#3a4b6d",
-                                    "&:hover": {
-                                      color: "#667eea",
-                                      transform: "scale(1.2)",
-                                    },
-                                    transition: "all 0.3s ease",
+                                  onClick={async () => {
+                                    setSelectedStockId(stock.id);
+                                    await fetchStockHistory(stock.id);
+                                    setOpenHistory(true);
                                   }}
+                                  size="small"
                                 >
-                                  <Edit />
+                                  <History fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Supprimer" arrow>
+                              <Tooltip title="Augmenter stock">
+                                <IconButton
+                                  onClick={() =>
+                                    handleAdjustClick(
+                                      stock.id,
+                                      1,
+                                      stock.quantity
+                                    )
+                                  }
+                                  size="small"
+                                  color="success"
+                                >
+                                  <ArrowUpward fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Diminuer stock">
+                                <IconButton
+                                  onClick={() =>
+                                    handleAdjustClick(
+                                      stock.id,
+                                      -1,
+                                      stock.quantity
+                                    )
+                                  }
+                                  size="small"
+                                  color="error"
+                                  disabled={stock.quantity <= 0}
+                                >
+                                  <ArrowDownward fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Modifier">
+                                <IconButton
+                                  onClick={() => {
+                                    setStockToEdit(stock);
+                                    setOpenForm(true);
+                                  }}
+                                  size="small"
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Supprimer">
                                 <IconButton
                                   onClick={() => handleDelete(stock.id)}
-                                  sx={{
-                                    color: "#ff4444",
-                                    "&:hover": {
-                                      transform: "scale(1.2)",
-                                    },
-                                    transition: "all 0.3s ease",
-                                  }}
+                                  size="small"
+                                  color="error"
                                 >
-                                  <Delete />
+                                  <Delete fontSize="small" />
                                 </IconButton>
                               </Tooltip>
                             </Box>
                           </TableCell>
-                        </TableRow>
-                      </Slide>
+                        )}
+                      </PremiumTableRow>
                     ))
-                )}
-
-                {!loading && emptyRows > 0 && (
-                  <TableRow style={{ height: 53 * emptyRows }}>
-                    <TableCell colSpan={5} />
-                  </TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
 
-          {/* Pagination premium */}
+          {/* Pagination */}
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
@@ -517,59 +624,107 @@ const StockList = () => {
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{
-              borderTop: "1px solid rgba(0,0,0,0.05)",
-              "& .MuiTablePagination-toolbar": {
-                flexWrap: "wrap",
-                justifyContent: "center",
-              },
-              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
-                {
-                  color: "#3a4b6d",
-                  fontWeight: 500,
-                },
-            }}
           />
         </Paper>
 
-        {/* Bouton mobile premium */}
-        <Box
-          sx={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            display: { xs: "block", sm: "none" },
-            zIndex: 1000,
-          }}
-        >
-          <Tooltip title="Ajouter un stock" arrow>
-            <Button
-              variant="contained"
-              onClick={handleAddStock}
-              sx={{
-                borderRadius: "50%",
-                width: 60,
-                height: 60,
-                minWidth: 0,
-                boxShadow: "0 10px 20px rgba(102, 126, 234, 0.3)",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                "&:hover": {
-                  transform: "scale(1.1)",
-                },
-                transition: "all 0.3s ease",
-              }}
-            >
-              <Add sx={{ fontSize: 28 }} />
-            </Button>
-          </Tooltip>
-        </Box>
+        {/* Bouton mobile pour ajout */}
+        {user?.role === "professionnel" && (
+          <Box
+            sx={{
+              position: "fixed",
+              bottom: 24,
+              right: 24,
+              display: { xs: "block", sm: "none" },
+            }}
+          >
+            <Tooltip title="Ajouter un stock">
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setStockToEdit(null);
+                  setOpenForm(true);
+                }}
+                sx={{
+                  borderRadius: "50%",
+                  width: 60,
+                  height: 60,
+                  minWidth: 0,
+                  background:
+                    "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
+                }}
+              >
+                <Add />
+              </Button>
+            </Tooltip>
+          </Box>
+        )}
 
-        {/* Modal du formulaire */}
-        <StockForm
-          open={openForm}
-          onClose={() => setOpenForm(false)}
-          refreshStocks={fetchStocks}
-          stockToEdit={stockToEdit}
+        {/* Dialogue d'ajustement */}
+        <Dialog
+          open={adjustmentDialogOpen}
+          onClose={() => setAdjustmentDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            {currentAdjustment.change > 0
+              ? "Augmenter le stock"
+              : "Diminuer le stock"}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Quantité actuelle: {currentAdjustment.currentQuantity}
+              <br />
+              Nouvelle quantité:{" "}
+              {currentAdjustment.currentQuantity + currentAdjustment.change}
+            </DialogContentText>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Raison de l'ajustement"
+              type="text"
+              fullWidth
+              variant="standard"
+              value={currentAdjustment.reason}
+              onChange={(e) =>
+                setCurrentAdjustment((prev) => ({
+                  ...prev,
+                  reason: e.target.value,
+                }))
+              }
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAdjustmentDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={confirmAdjustment}
+              color={currentAdjustment.change > 0 ? "success" : "error"}
+              variant="contained"
+            >
+              Confirmer
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Formulaire de stock */}
+        {openForm && (
+          <StockForm
+            open={openForm}
+            onClose={() => setOpenForm(false)}
+            stock={stockToEdit}
+            refreshStocks={fetchStocks}
+            userRole={user?.role}
+          />
+        )}
+
+        {/* Historique des mouvements */}
+        <StockHistory
+          open={openHistory}
+          onClose={() => setOpenHistory(false)}
+          history={stockHistory}
+          stockId={selectedStockId}
         />
       </Box>
     </Fade>

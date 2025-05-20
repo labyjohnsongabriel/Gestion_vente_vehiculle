@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -6,114 +6,186 @@ import {
   DialogActions,
   Button,
   TextField,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Typography,
-  Box,
-  Fade,
-  Slide,
   IconButton,
+  Box,
   Divider,
   CircularProgress,
-  Autocomplete,
-  Avatar,
-  Chip,
   InputAdornment,
+  Alert,
+  FormHelperText,
+  Slide,
+  Fade,
+  Chip,
+  Avatar,
 } from "@mui/material";
 import {
   Close,
   Save,
   DirectionsCar,
-  CheckCircle,
   CalendarToday,
+  Speed,
+  LocalGasStation,
+  ColorLens,
+  Delete,
+  Edit,
+  CheckCircle,
+  Warning,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 const API_URL = "http://localhost:5000/api/vehicules";
 
-const PremiumDialog = styled(Dialog)(({ theme }) => ({
+// Styles personnalisés modernes
+const StyledDialog = styled(Dialog)(({ theme }) => ({
   "& .MuiPaper-root": {
-    borderRadius: "16px",
-    maxWidth: "800px",
-    width: "100%",
-    background: "linear-gradient(145deg, #f8f9fa 0%, #ffffff 100%)",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-  },
-  "& .MuiDialogContent-root::-webkit-scrollbar": {
-    display: "none",
+    borderRadius: 16,
+    boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+    background: theme.palette.background.paper,
+    backgroundImage: "none",
   },
   "& .MuiDialogContent-root": {
-    scrollbarWidth: "none" /* Firefox */,
-    msOverflowStyle: "none" /* IE and Edge */,
+    padding: theme.spacing(3),
   },
 }));
 
-const VehiculeForm = ({ open, onClose, refreshVehicules, vehiculeToEdit }) => {
-  const [formData, setFormData] = useState({
+const FormHeader = styled(Box)(({ theme }) => ({
+  background: "linear-gradient(135deg, #6B73FF 0%, #000DFF 100%)",
+  padding: theme.spacing(2, 3),
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  color: "white",
+  position: "relative",
+  overflow: "hidden",
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    top: -50,
+    right: -50,
+    width: 150,
+    height: 150,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.1)",
+  },
+}));
+
+const StyledTextField = styled(TextField)(({ theme }) => ({
+  "& .MuiInputBase-root": {
+    borderRadius: 12,
+    transition: "all 0.3s ease",
+    "&:hover": {
+      boxShadow: "0 0 0 2px rgba(107, 115, 255, 0.2)",
+    },
+    "&.Mui-focused": {
+      boxShadow: "0 0 0 2px rgba(107, 115, 255, 0.5)",
+    },
+  },
+  marginBottom: theme.spacing(2),
+}));
+
+const FormSection = styled(Box)(({ theme }) => ({
+  marginBottom: theme.spacing(3),
+  padding: theme.spacing(2),
+  borderRadius: 12,
+  background: theme.palette.background.default,
+  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+}));
+
+const StatusChip = styled(Chip)(({ status }) => ({
+  backgroundColor:
+    status === "disponible"
+      ? "#4CAF50"
+      : status === "en maintenance"
+      ? "#FF9800"
+      : status === "indisponible"
+      ? "#F44336"
+      : "#2196F3",
+  color: "white",
+  fontWeight: 600,
+  borderRadius: 8,
+}));
+
+const VehiculeForm = ({
+  open,
+  onClose,
+  refreshVehicules,
+  vehiculeToEdit,
+  axiosInstance,
+}) => {
+  const initialFormState = {
     marque: "",
     modele: "",
     immatriculation: "",
-    type: "",
+    annee: new Date().getFullYear(),
+    kilometrage: 0,
+    type: "berline",
     statut: "disponible",
-    dateMiseEnService: new Date().toISOString().split("T")[0],
-    kilometrage: "",
-    annee: "",
-  });
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const navigate = useNavigate();
+    description: "",
+  };
 
-  const typeOptions = ["Voiture", "Camion", "Moto", "Utilitaire", "Autre"];
-  const statutOptions = ["disponible", "en maintenance", "hors service"];
+  const [formData, setFormData] = useState(initialFormState);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    if (vehiculeToEdit) {
-      setFormData({
-        marque: vehiculeToEdit.marque || "",
-        modele: vehiculeToEdit.modele || "",
-        immatriculation: vehiculeToEdit.immatriculation || "",
-        type: vehiculeToEdit.type || "",
-        statut: vehiculeToEdit.statut || "disponible",
-        dateMiseEnService:
-          vehiculeToEdit.dateMiseEnService ||
-          new Date().toISOString().split("T")[0],
-        kilometrage: vehiculeToEdit.kilometrage || "",
-        annee: vehiculeToEdit.annee || "",
-      });
-    } else {
-      setFormData({
-        marque: "",
-        modele: "",
-        immatriculation: "",
-        type: "",
-        statut: "disponible",
-        dateMiseEnService: new Date().toISOString().split("T")[0],
-        kilometrage: "",
-        annee: "",
-      });
+    if (open) {
+      if (vehiculeToEdit) {
+        setFormData(vehiculeToEdit);
+      } else {
+        setFormData(initialFormState);
+      }
+      setErrors({});
     }
-    setErrors({});
-    setIsSuccess(false);
-  }, [vehiculeToEdit, open]);
+  }, [open, vehiculeToEdit]);
 
-  const handleChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === "annee" || name === "kilometrage") {
+      const numValue = value === "" ? "" : Number(value);
+      setFormData({ ...formData, [name]: numValue });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
+
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+      setErrors({ ...errors, [name]: null });
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.marque) newErrors.marque = "Marque requise";
-    if (!formData.modele) newErrors.modele = "Modèle requis";
-    if (!formData.immatriculation)
-      newErrors.immatriculation = "Immatriculation requise";
-    if (!formData.type) newErrors.type = "Type de véhicule requis";
-    if (!formData.kilometrage) newErrors.kilometrage = "Kilométrage requis";
-    if (!formData.annee) newErrors.annee = "Année requise";
+
+    if (!formData.marque.trim()) newErrors.marque = "La marque est requise";
+    if (!formData.modele.trim()) newErrors.modele = "Le modèle est requis";
+
+    const immatRegex = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
+    if (!immatRegex.test(formData.immatriculation)) {
+      newErrors.immatriculation = "Format invalide. Ex: AB-123-CD";
+    }
+
+    if (!formData.annee) {
+      newErrors.annee = "L'année est requise";
+    } else if (
+      formData.annee < 1900 ||
+      formData.annee > new Date().getFullYear() + 1
+    ) {
+      newErrors.annee = "Année invalide";
+    }
+
+    if (formData.kilometrage < 0) {
+      newErrors.kilometrage = "Le kilométrage ne peut pas être négatif";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -121,315 +193,456 @@ const VehiculeForm = ({ open, onClose, refreshVehicules, vehiculeToEdit }) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
+    setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
-
-      if (!token) {
-        Swal.fire(
-          "Erreur d'authentification",
-          "Votre session a expiré. Veuillez vous reconnecter.",
-          "error"
-        );
-        navigate("/login");
-        return;
-      }
-
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-      };
-
       if (vehiculeToEdit) {
-        await axios.put(`${API_URL}/${vehiculeToEdit.id}`, formData, config);
-        Swal.fire("Succès", "Véhicule mis à jour avec succès", "success");
+        await axiosInstance.put(`${API_URL}/${vehiculeToEdit.id}`, formData);
+        Swal.fire({
+          title: "Succès!",
+          text: "Véhicule mis à jour avec succès",
+          icon: "success",
+          confirmButtonColor: "#6B73FF",
+          showConfirmButton: false,
+          timer: 1500,
+          background: "#fff",
+          backdrop: `
+            rgba(107,115,255,0.4)
+            left top
+            no-repeat
+          `,
+        });
       } else {
-        await axios.post(API_URL, formData, config);
-        Swal.fire("Succès", "Véhicule créé avec succès", "success");
+        await axiosInstance.post(API_URL, formData);
+        Swal.fire({
+          title: "Succès!",
+          text: "Véhicule ajouté avec succès",
+          icon: "success",
+          confirmButtonColor: "#6B73FF",
+          showConfirmButton: false,
+          timer: 1500,
+        });
       }
 
-      setIsSuccess(true);
-      setTimeout(() => {
-        refreshVehicules();
-        onClose();
-      }, 1500);
+      refreshVehicules();
+      onClose();
     } catch (error) {
-      console.error("Erreur lors de l'envoi des données :", error);
-      if (
-        error.response?.status === 401 ||
-        error.response?.data?.message?.includes("Token")
-      ) {
-        localStorage.removeItem("authToken"); // Supprimer le token invalide
-        navigate("/login");
-        Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
+      console.error("Erreur lors de l'enregistrement:", error);
+
+      if (error.response?.status === 400) {
+        const serverErrors = error.response.data.errors;
+        if (serverErrors) {
+          setErrors(serverErrors);
+        }
+      } else if (error.response?.status === 401) {
+        Swal.fire({
+          title: "Session expirée",
+          text: "Veuillez vous reconnecter",
+          icon: "error",
+          confirmButtonColor: "#6B73FF",
+        });
       } else {
-        Swal.fire(
-          "Erreur",
-          error.response?.data?.message || "Une erreur est survenue",
-          "error"
-        );
+        Swal.fire({
+          title: "Erreur",
+          text: "Une erreur s'est produite lors de l'enregistrement du véhicule",
+          icon: "error",
+          confirmButtonColor: "#6B73FF",
+        });
       }
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    const result = await Swal.fire({
+      title: "Confirmer la suppression",
+      html: `
+        <div style="text-align:center">
+          <Warning color="error" style="font-size:60px;margin-bottom:20px"/>
+          <p>Êtes-vous sûr de vouloir supprimer ce véhicule?</p>
+          <p><strong>${formData.marque} ${formData.modele}</strong></p>
+          <p>Cette action est irréversible.</p>
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#FF4444",
+      cancelButtonColor: "#6B73FF",
+      confirmButtonText: "Oui, supprimer",
+      cancelButtonText: "Annuler",
+      reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
+      setDeleteLoading(true);
+      try {
+        await axiosInstance.delete(`${API_URL}/${vehiculeToEdit.id}`);
+        Swal.fire({
+          title: "Supprimé!",
+          text: "Le véhicule a été supprimé avec succès",
+          icon: "success",
+          confirmButtonColor: "#6B73FF",
+          showConfirmButton: false,
+          timer: 1500,
+        });
+        refreshVehicules();
+        onClose();
+      } catch (error) {
+        Swal.fire({
+          title: "Erreur",
+          text: "La suppression a échoué",
+          icon: "error",
+          confirmButtonColor: "#6B73FF",
+        });
+      } finally {
+        setDeleteLoading(false);
+      }
     }
   };
 
   return (
-    <PremiumDialog
+    <StyledDialog
       open={open}
-      onClose={isSubmitting ? null : onClose}
-      TransitionComponent={Slide}
-      fullWidth
+      onClose={loading ? undefined : onClose}
       maxWidth="md"
+      fullWidth
+      TransitionComponent={Slide}
+      transitionDuration={400}
+      PaperProps={{
+        sx: {
+          minHeight: "80vh",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+        },
+      }}
     >
-      <Fade in={open}>
-        <Box>
-          <DialogTitle
+      {/* En-tête personnalisé avec gradient moderne */}
+      <FormHeader>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Avatar
             sx={{
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "white",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              py: 3,
-              px: 4,
-              borderRadius: "16px 16px 0 0",
+              bgcolor: "rgba(255,255,255,0.2)",
+              width: 48,
+              height: 48,
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <DirectionsCar sx={{ fontSize: 32 }} />
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                {vehiculeToEdit ? "Modifier Véhicule" : "Nouveau Véhicule"}
-              </Typography>
-            </Box>
-            <IconButton
-              edge="end"
-              color="inherit"
-              onClick={onClose}
-              disabled={isSubmitting}
-              sx={{
-                "&:hover": {
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  transform: "rotate(90deg)",
-                  transition: "transform 0.3s ease",
-                },
-              }}
-            >
-              <Close />
-            </IconButton>
-          </DialogTitle>
+            <DirectionsCar sx={{ fontSize: 28 }} />
+          </Avatar>
+          <Typography variant="h5" component="div" fontWeight={600}>
+            {vehiculeToEdit ? "Modifier le véhicule" : "Nouveau véhicule"}
+          </Typography>
+        </Box>
+        <IconButton
+          onClick={onClose}
+          disabled={loading}
+          sx={{ color: "white" }}
+          aria-label="fermer"
+        >
+          <Close />
+        </IconButton>
+      </FormHeader>
 
-          <DialogContent dividers sx={{ p: 4, overflow: "hidden" }}>
-            {isSuccess ? (
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  py: 6,
+      <DialogContent sx={{ pt: 3, flexGrow: 1, overflowY: "auto" }}>
+        {/* Informations principales */}
+        <FormSection>
+          <Typography
+            variant="h6"
+            color="text.primary"
+            gutterBottom
+            sx={{
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <CheckCircle color="primary" /> Informations principales
+          </Typography>
+          <Divider sx={{ mb: 3 }} />
+
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="Marque"
+                name="marque"
+                value={formData.marque}
+                onChange={handleChange}
+                fullWidth
+                required
+                error={!!errors.marque}
+                helperText={errors.marque}
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <DirectionsCar color="action" />
+                    </InputAdornment>
+                  ),
                 }}
-              >
-                <CheckCircle sx={{ fontSize: 80, color: "#4caf50", mb: 3 }} />
-                <Typography variant="h5" gutterBottom>
-                  {vehiculeToEdit ? "Véhicule mis à jour!" : "Véhicule créé!"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Redirection en cours...
-                </Typography>
-              </Box>
-            ) : (
-              <>
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                    Informations du véhicule
-                  </Typography>
-                  <Divider sx={{ borderColor: "rgba(0,0,0,0.08)" }} />
-                </Box>
+              />
+            </Grid>
 
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 3,
-                    maxHeight: "60vh",
-                    overflowY: "auto",
-                    pr: 1,
-                  }}
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="Modèle"
+                name="modele"
+                value={formData.modele}
+                onChange={handleChange}
+                fullWidth
+                required
+                error={!!errors.modele}
+                helperText={errors.modele}
+                disabled={loading}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="Immatriculation"
+                name="immatriculation"
+                value={formData.immatriculation}
+                onChange={handleChange}
+                fullWidth
+                required
+                error={!!errors.immatriculation}
+                helperText={errors.immatriculation || "Format: AB-123-CD"}
+                disabled={loading}
+                placeholder="AB-123-CD"
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="Année"
+                name="annee"
+                type="number"
+                value={formData.annee}
+                onChange={handleChange}
+                fullWidth
+                required
+                error={!!errors.annee}
+                helperText={errors.annee}
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarToday color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="Kilométrage (km)"
+                name="kilometrage"
+                type="number"
+                value={formData.kilometrage}
+                onChange={handleChange}
+                fullWidth
+                error={!!errors.kilometrage}
+                helperText={errors.kilometrage}
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Speed color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Type de véhicule</InputLabel>
+                <Select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  disabled={loading}
+                  sx={{ borderRadius: 2 }}
                 >
-                  <TextField
-                    label="Marque *"
-                    value={formData.marque}
-                    onChange={(e) => handleChange("marque", e.target.value)}
-                    error={!!errors.marque}
-                    helperText={errors.marque}
-                    fullWidth
-                  />
+                  <MenuItem value="berline">Berline</MenuItem>
+                  <MenuItem value="suv">SUV</MenuItem>
+                  <MenuItem value="citadine">Citadine</MenuItem>
+                  <MenuItem value="break">Break</MenuItem>
+                  <MenuItem value="cabriolet">Cabriolet</MenuItem>
+                  <MenuItem value="monospace">Monospace</MenuItem>
+                  <MenuItem value="utilitaire">Utilitaire</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </FormSection>
 
-                  <TextField
-                    label="Modèle *"
-                    value={formData.modele}
-                    onChange={(e) => handleChange("modele", e.target.value)}
-                    error={!!errors.modele}
-                    helperText={errors.modele}
-                    fullWidth
-                  />
+        {/* Détails supplémentaires */}
+        <FormSection>
+          <Typography
+            variant="h6"
+            color="text.primary"
+            gutterBottom
+            sx={{
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Warning color="primary" /> Détails supplémentaires
+          </Typography>
+          <Divider sx={{ mb: 3 }} />
 
-                  <TextField
-                    label="Immatriculation *"
-                    value={formData.immatriculation}
-                    onChange={(e) =>
-                      handleChange("immatriculation", e.target.value)
-                    }
-                    error={!!errors.immatriculation}
-                    helperText={errors.immatriculation}
-                    fullWidth
-                  />
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Statut</InputLabel>
+                <Select
+                  name="statut"
+                  value={formData.statut}
+                  onChange={handleChange}
+                  disabled={loading}
+                  sx={{ borderRadius: 2 }}
+                >
+                  <MenuItem value="disponible">
+                    <StatusChip
+                      label="Disponible"
+                      status="disponible"
+                      size="small"
+                    />
+                  </MenuItem>
+                  <MenuItem value="en maintenance">
+                    <StatusChip
+                      label="En maintenance"
+                      status="en maintenance"
+                      size="small"
+                    />
+                  </MenuItem>
+                  <MenuItem value="indisponible">
+                    <StatusChip
+                      label="Indisponible"
+                      status="indisponible"
+                      size="small"
+                    />
+                  </MenuItem>
+                  <MenuItem value="réservé">
+                    <StatusChip label="Réservé" status="réservé" size="small" />
+                  </MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-                  <Autocomplete
-                    options={typeOptions}
-                    value={formData.type}
-                    onChange={(e, newValue) => handleChange("type", newValue)}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Type de véhicule *"
-                        error={!!errors.type}
-                        helperText={errors.type}
-                      />
-                    )}
-                  />
+            {/*   <Grid item xs={12} sm={6}>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Carburant</InputLabel>
+                <Select
+                  name="carburant"
+                  value={formData.carburant || ""}
+                  onChange={handleChange}
+                  disabled={loading}
+                  sx={{ borderRadius: 2 }}
+                >
+                  <MenuItem value="essence">Essence</MenuItem>
+                  <MenuItem value="diesel">Diesel</MenuItem>
+                  <MenuItem value="hybride">Hybride</MenuItem>
+                  <MenuItem value="electrique">Électrique</MenuItem>
+                  <MenuItem value="gpl">GPL</MenuItem>
+                </Select>
+                <FormHelperText>
+                  Type de carburant utilisé par le véhicule
+                </FormHelperText>
+              </FormControl>
+            </Grid>
+             */}
+          </Grid>
 
-                  <Autocomplete
-                    options={statutOptions}
-                    value={formData.statut}
-                    onChange={(e, newValue) => handleChange("statut", newValue)}
-                    renderInput={(params) => (
-                      <TextField {...params} label="Statut du véhicule" />
-                    )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        <Chip
-                          label={
-                            option === "disponible"
-                              ? "Disponible"
-                              : option === "en maintenance"
-                              ? "En maintenance"
-                              : "Hors service"
-                          }
-                          color={
-                            option === "disponible"
-                              ? "success"
-                              : option === "en maintenance"
-                              ? "warning"
-                              : "error"
-                          }
-                          size="small"
-                          sx={{ mr: 1 }}
-                        />
-                        {option}
-                      </Box>
-                    )}
-                  />
-                  <TextField
-                    label="Kilométrage *"
-                    type="number"
-                    value={formData.kilometrage}
-                    onChange={(e) =>
-                      handleChange("kilometrage", e.target.value)
-                    }
-                    error={!!errors.kilometrage}
-                    helperText={errors.kilometrage}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Année *"
-                    type="number"
-                    value={formData.annee}
-                    onChange={(e) => handleChange("annee", e.target.value)}
-                    error={!!errors.annee}
-                    helperText={errors.annee}
-                    fullWidth
-                  />
+          <StyledTextField
+            label="Description"
+            name="description"
+            value={formData.description || ""}
+            onChange={handleChange}
+            fullWidth
+            multiline
+            rows={3}
+            disabled={loading}
+            placeholder="Entrez des informations complémentaires sur le véhicule..."
+          />
+        </FormSection>
+      </DialogContent>
 
-                  <TextField
-                    label="Date de mise en service"
-                    type="date"
-                    value={formData.dateMiseEnService}
-                    onChange={(e) =>
-                      handleChange("dateMiseEnService", e.target.value)
-                    }
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CalendarToday color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                  />
-                </Box>
-              </>
-            )}
-          </DialogContent>
-
-          {!isSuccess && (
-            <DialogActions
-              sx={{
-                p: 3,
-                borderTop: "1px solid rgba(0,0,0,0.08)",
-                background: "rgba(245,245,245,0.5)",
-              }}
+      <DialogActions
+        sx={{
+          p: 3,
+          justifyContent: "space-between",
+          bgcolor: "#f7f9fc",
+          borderTop: "1px solid #eee",
+        }}
+      >
+        <Box>
+          {vehiculeToEdit && (
+            <Button
+              onClick={handleDelete}
+              color="error"
+              variant="outlined"
+              disabled={loading || deleteLoading}
+              startIcon={
+                deleteLoading ? (
+                  <CircularProgress size={20} color="error" />
+                ) : (
+                  <Delete />
+                )
+              }
+              sx={{ borderRadius: 2, mr: 2 }}
             >
-              <Button
-                onClick={onClose}
-                disabled={isSubmitting}
-                sx={{
-                  borderRadius: "50px",
-                  px: 3,
-                  textTransform: "none",
-                  "&:hover": {
-                    backgroundColor: "rgba(0,0,0,0.05)",
-                  },
-                }}
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                variant="contained"
-                color="primary"
-                startIcon={
-                  isSubmitting ? (
-                    <CircularProgress size={20} color="inherit" />
-                  ) : (
-                    <Save />
-                  )
-                }
-                disabled={isSubmitting}
-                sx={{
-                  borderRadius: "50px",
-                  px: 3,
-                  textTransform: "none",
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  "&:hover": {
-                    boxShadow: "0 5px 15px rgba(102, 126, 234, 0.4)",
-                  },
-                }}
-              >
-                {isSubmitting
-                  ? "En cours..."
-                  : vehiculeToEdit
-                  ? "Mettre à jour"
-                  : "Enregistrer"}
-              </Button>
-            </DialogActions>
+              {deleteLoading ? "Suppression..." : "Supprimer"}
+            </Button>
           )}
         </Box>
-      </Fade>
-    </PremiumDialog>
+
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            onClick={onClose}
+            disabled={loading || deleteLoading}
+            color="inherit"
+            variant="outlined"
+            startIcon={<Close />}
+            sx={{ borderRadius: 2 }}
+          >
+            Annuler
+          </Button>
+
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              onClick={handleSubmit}
+              color="primary"
+              variant="contained"
+              disabled={loading || deleteLoading}
+              startIcon={
+                loading ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <Save />
+                )
+              }
+              sx={{
+                borderRadius: 2,
+                background: "linear-gradient(135deg, #6B73FF 0%, #000DFF 100%)",
+                boxShadow: "0 4px 15px rgba(107, 115, 255, 0.4)",
+              }}
+            >
+              {loading
+                ? "Enregistrement..."
+                : vehiculeToEdit
+                ? "Mettre à jour"
+                : "Enregistrer"}
+            </Button>
+          </motion.div>
+        </Box>
+      </DialogActions>
+    </StyledDialog>
   );
 };
 

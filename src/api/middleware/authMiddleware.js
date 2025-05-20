@@ -1,6 +1,8 @@
 
 const jwt = require("jsonwebtoken");
 
+
+
 module.exports = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization; // Récupérer le header Authorization
@@ -54,6 +56,7 @@ module.exports = (req, res, next) => {
       },
     };
 
+    
     const customError = errorsMap[error.name] || {
       status: 500,
       message: "Erreur interne du serveur.",

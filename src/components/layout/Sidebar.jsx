@@ -124,14 +124,9 @@ const MENU_ITEMS = [
     path: "/commandes",
   },
   {
-    text: "Factures",
-    icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
-    path: "/factures",
-  },
-  {
-    text: "Stocks",
-    icon: <InventoryIcon sx={{ color: "#9575cd" }} />,
-    path: "/stocks",
+    text: "Catégories",
+    icon: <CategoryIcon sx={{ color: "#4db6ac" }} />,
+    path: "/categorie",
   },
   {
     text: "Pièces",
@@ -139,24 +134,30 @@ const MENU_ITEMS = [
     path: "/pieces",
   },
   {
-    text: "Catégories",
-    icon: <CategoryIcon sx={{ color: "#4db6ac" }} />,
-    path: "/categorie",
+    text: "Stocks",
+    icon: <InventoryIcon sx={{ color: "#9575cd" }} />,
+    path: "/stocks",
   },
+
   {
     text: "Véhicules",
     icon: <CarIcon sx={{ color: "#ef9a9a" }} />,
     path: "/vehicules",
   },
-  {
+  /* {
     text: "Pièces Véhicule",
     icon: <BuildIcon sx={{ color: "#7986cb" }} />,
     path: "/piece-vehicule",
-  },
+  }
   {
     text: "Intégrations",
     icon: <SyncIcon sx={{ color: "#90a4ae" }} />,
     path: "/integrations",
+  },,*/
+  {
+    text: "Factures",
+    icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
+    path: "/factures",
   },
   {
     text: "Paramètres",
@@ -178,7 +179,7 @@ const MENU_ITEMS = [
       {
         text: "Profil",
         icon: <AccountIcon sx={{ color: "#f48fb1", fontSize: "1.2rem" }} />,
-        path: "/account",
+        path: "/Profile",
       },
     ],
   },
@@ -215,7 +216,7 @@ export const Sidebar = memo(({ open, onClose }) => {
       open={open}
       onClose={onClose}
       sx={{
-        width: 220,
+        width: 229,
         flexShrink: 0,
         "& .MuiDrawer-paper": {
           width: 285,

@@ -3,17 +3,21 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/userController");
-const authMiddleware = require("../middleware/authMiddleware");
+
 const upload = require("../config/multer");
 
-router.use(authMiddleware);
+// routes/userRoutes.js
+
+router.post("/register", userController.registerUser);
+
+router.get("/",userController.getAllUsers);
 
 // ✅ Route pour récupérer le profil
-router.get("/profile", authMiddleware, userController.getProfile);
+router.get("/profile", userController.getProfile);
 
 // ✅ Route pour mettre à jour le profil
-router.put("/profile", authMiddleware, userController.updateProfile);
+router.put("/profile", userController.updateProfile);
 
 
 
-module.exports = router;
+module.exports = router

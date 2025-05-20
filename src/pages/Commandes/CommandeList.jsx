@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import InfoIcon from "@mui/icons-material/Info";
+
 import {
   Table,
   TableBody,
@@ -22,11 +24,12 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
+  
   Grid,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
 } from "@mui/material";
 import {
   Edit,
@@ -42,7 +45,8 @@ import {
   CalendarToday,
   AttachMoney,
   LocalShipping,
-  Print
+  Print,
+  Notes,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
@@ -53,10 +57,12 @@ import { useNavigate } from "react-router-dom";
 // Style personnalisé
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
-    background: "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
+    background:
+      "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
   },
   "&:hover": {
-    background: "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    background:
+      "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
     transform: "scale(1.005)",
     boxShadow: theme.shadows[1],
     transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
@@ -104,61 +110,16 @@ const CommandeList = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Configuration des intercepteurs axios
-  useEffect(() => {
-    const requestInterceptor = axios.interceptors.request.use(config => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
-
-    const responseInterceptor = axios.interceptors.response.use(
-      response => response,
-      error => {
-        if (error.response?.status === 401) {
-          handleLogout();
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      axios.interceptors.request.eject(requestInterceptor);
-      axios.interceptors.response.eject(responseInterceptor);
-    };
-  }, []);
-
-  const getAuthToken = () => {
-    return localStorage.getItem("token");
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/");
-    Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
-  };
-
   const fetchCommandes = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
-      
-      const response = await axios.get(API_URL, {
-        headers: {
-          Authorization: `Bearer ${getAuthToken()}`
-        }
-      });
-      
+
+      const response = await axios.get(API_URL);
       setCommandes(response.data);
     } catch (error) {
       console.error("Erreur lors du chargement des commandes:", error);
-      if (error.response?.status === 401) {
-        handleLogout();
-      } else {
-        Swal.fire("Erreur", "Impossible de charger les commandes", "error");
-      }
+      Swal.fire("Erreur", "Impossible de charger les commandes", "error");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -168,19 +129,11 @@ const CommandeList = () => {
   const fetchCommandeDetails = async (commandeId) => {
     try {
       setDetailsLoading(true);
-      const response = await axios.get(`${API_URL}/${commandeId}/details`, {
-        headers: {
-          Authorization: `Bearer ${getAuthToken()}`
-        }
-      });
+      const response = await axios.get(`${API_URL}/${commandeId}/details`);
       setDetails(response.data);
     } catch (error) {
       console.error("Erreur lors du chargement des détails:", error);
-      if (error.response?.status === 401) {
-        handleLogout();
-      } else {
-        Swal.fire("Erreur", "Impossible de charger les détails", "error");
-      }
+      Swal.fire("Erreur", "Impossible de charger les détails", "error");
     } finally {
       setDetailsLoading(false);
     }
@@ -214,11 +167,7 @@ const CommandeList = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_URL}/${id}`, {
-            headers: {
-              Authorization: `Bearer ${getAuthToken()}`
-            }
-          });
+          await axios.delete(`${API_URL}/${id}`);
           fetchCommandes();
           Swal.fire({
             title: "Supprimé!",
@@ -229,11 +178,7 @@ const CommandeList = () => {
             timerProgressBar: true,
           });
         } catch (error) {
-          if (error.response?.status === 401) {
-            handleLogout();
-          } else {
-            Swal.fire("Erreur", "La suppression a échoué.", "error");
-          }
+          Swal.fire("Erreur", "La suppression a échoué.", "error");
         }
       }
     });
@@ -398,6 +343,9 @@ const CommandeList = () => {
                     Responsable
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Montant
+                  </TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Date
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
@@ -517,15 +465,21 @@ const CommandeList = () => {
                             </Box>
                           </TableCell>
                           <TableCell sx={{ color: "#3a4b6d" }}>
+                            {new Date(
+                              commande.dateCommande
+                            ).toLocaleDateString()}
+                          </TableCell>
+
+                          <TableCell sx={{ color: "#3a4b6d" }}>
                             {new Date(commande.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell sx={{ color: "#3a4b6d" }}>
                             <Chip
-                              label={commande.statut || "En cours"}
+                              label={commande.status || "En cours"}
                               color={
-                                commande.statut === "Livrée"
+                                commande.status === "Livrée"
                                   ? "success"
-                                  : commande.statut === "Annulée"
+                                  : commande.status === "Annulée"
                                   ? "error"
                                   : "warning"
                               }
@@ -694,7 +648,7 @@ const CommandeList = () => {
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <ShoppingCart sx={{ fontSize: 32 }} />
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                Détails de la commande  du  {selectedCommande?.client_name}
+                Détails de la commande du {selectedCommande?.client_name}
               </Typography>
             </Box>
             <Box>
@@ -718,7 +672,6 @@ const CommandeList = () => {
               </IconButton>
             </Box>
           </DialogTitle>
-
           <DialogContent dividers sx={{ p: 4 }}>
             {detailsLoading ? (
               <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -726,173 +679,354 @@ const CommandeList = () => {
               </Box>
             ) : (
               <>
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Informations générales
+                {/* Header amélioré avec icône et boutons d'action */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 4,
+                    background:
+                      "linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%)",
+                    p: 3,
+                    borderRadius: 2,
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <Typography
+                    variant="h5"
+                    sx={{ fontWeight: 700, color: "primary.main" }}
+                  >
+                    <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />
+                    Détails de la Commande #{selectedCommande?.id}
+                  </Typography>
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Print />}
+                      sx={{ mr: 2, borderRadius: 2 }}
+                      onClick={() => window.print()}
+                    >
+                      Imprimer
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<Close />}
+                      sx={{ borderRadius: 2 }}
+                      onClick={() => setDetailsOpen(false)}
+                    >
+                      Fermer
+                    </Button>
+                  </Box>
+                </Box>
+
+                {/* Section Informations générales avec mise en page améliorée */}
+                <Box
+                  sx={{
+                    mb: 4,
+                    p: 3,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    borderRadius: 2,
+                    background: "#ffffff",
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 3,
+                      fontWeight: 600,
+                      color: "text.primary",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <InfoIcon color="primary" />
+                    Informations Générales
                   </Typography>
 
-                  <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid container spacing={3}>
+                    {/* Client */}
                     <Grid item xs={12} md={6}>
                       <Box
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          mb: 2,
+                          p: 2,
+                          borderRadius: 2,
+                          background: "rgba(102, 126, 234, 0.05)",
+                          borderLeft: "4px solid #667eea",
                         }}
                       >
-                        <Person color="primary" />
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            color="text.secondary"
-                          >
-                            Client
-                          </Typography>
-                          <Typography variant="body1" fontWeight={500}>
-                            {selectedCommande?.client_name}
-                          </Typography>
-                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          <Person
+                            fontSize="small"
+                            sx={{ verticalAlign: "middle", mr: 1 }}
+                          />
+                          Client
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          fontWeight={600}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {selectedCommande?.client_name}
+                        </Typography>
                       </Box>
                     </Grid>
 
+                    {/* Responsable */}
                     <Grid item xs={12} md={6}>
                       <Box
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          mb: 2,
+                          p: 2,
+                          borderRadius: 2,
+                          background: "rgba(76, 175, 80, 0.05)",
+                          borderLeft: "4px solid #4caf50",
                         }}
                       >
-                        <Person color="primary" />
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            color="text.secondary"
-                          >
-                            Responsable
-                          </Typography>
-                          <Typography variant="body1" fontWeight={500}>
-                            {selectedCommande?.user_name}
-                          </Typography>
-                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          <Person
+                            fontSize="small"
+                            sx={{ verticalAlign: "middle", mr: 1 }}
+                          />
+                          Responsable
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          fontWeight={600}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {selectedCommande?.user_name}
+                        </Typography>
                       </Box>
                     </Grid>
 
+                    {/* Date */}
                     <Grid item xs={12} md={6}>
                       <Box
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          mb: 2,
+                          p: 2,
+                          borderRadius: 2,
+                          background: "rgba(255, 152, 0, 0.05)",
+                          borderLeft: "4px solid #ff9800",
                         }}
                       >
-                        <CalendarToday color="primary" />
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            color="text.secondary"
-                          >
-                            Date de commande
-                          </Typography>
-                          <Typography variant="body1" fontWeight={500}>
-                            {new Date(
-                              selectedCommande?.created_at
-                            ).toLocaleDateString()}
-                          </Typography>
-                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          <CalendarToday
+                            fontSize="small"
+                            sx={{ verticalAlign: "middle", mr: 1 }}
+                          />
+                          Date de commande
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          fontWeight={600}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {new Date(
+                            selectedCommande?.created_at
+                          ).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </Typography>
                       </Box>
                     </Grid>
 
+                    {/* Montant */}
                     <Grid item xs={12} md={6}>
                       <Box
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          mb: 2,
+                          p: 2,
+                          borderRadius: 2,
+                          background: "rgba(33, 150, 243, 0.05)",
+                          borderLeft: "4px solid #2196f3",
                         }}
                       >
-                        <AttachMoney color="primary" />
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            color="text.secondary"
-                          >
-                            Montant total
-                          </Typography>
-                          <Typography variant="body1" fontWeight={500}>
-                            {selectedCommande?.montant?.toFixed(2)} €
-                          </Typography>
-                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary">
+                          <AttachMoney
+                            fontSize="small"
+                            sx={{ verticalAlign: "middle", mr: 1 }}
+                          />
+                          Montant total
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          fontWeight={600}
+                          sx={{ mt: 0.5 }}
+                        >
+                          {selectedCommande?.montant?.toLocaleString("fr-FR", {
+                            style: "currency",
+                            currency: "EUR",
+                            minimumFractionDigits: 2,
+                          })}
+                        </Typography>
                       </Box>
                     </Grid>
 
+                    {/* Statut avec plus de détails */}
                     <Grid item xs={12}>
                       <Box
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          mb: 2,
+                          p: 2,
+                          borderRadius: 2,
+                          background:
+                            selectedCommande?.status === "Livrée"
+                              ? "rgba(76, 175, 80, 0.08)"
+                              : selectedCommande?.status === "Annulée"
+                              ? "rgba(244, 67, 54, 0.08)"
+                              : "rgba(255, 152, 0, 0.08)",
+                          borderLeft: "4px solid",
+                          borderColor:
+                            selectedCommande?.status === "Livrée"
+                              ? "#4caf50"
+                              : selectedCommande?.status === "Annulée"
+                              ? "#f44336"
+                              : "#ff9800",
                         }}
                       >
-                        <LocalShipping color="primary" />
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            color="text.secondary"
-                          >
-                            Statut
-                          </Typography>
-                          <Chip
-                            label={selectedCommande?.statut}
-                            color={
-                              selectedCommande?.status === "Livrée"
-                                ? "success"
-                                : selectedCommande?.status === "Annulée"
-                                ? "error"
-                                : "warning"
-                            }
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Box>
+                            <Typography
+                              variant="subtitle2"
+                              color="text.secondary"
+                            >
+                              <LocalShipping
+                                fontSize="small"
+                                sx={{ verticalAlign: "middle", mr: 1 }}
+                              />
+                              Statut de la commande
+                            </Typography>
+                            <Chip
+                              label={selectedCommande?.status}
+                              color={
+                                selectedCommande?.status === "Livrée"
+                                  ? "success"
+                                  : selectedCommande?.status === "Annulée"
+                                  ? "error"
+                                  : "warning"
+                              }
+                              size="medium"
+                              sx={{
+                                fontWeight: 600,
+                                mt: 1,
+                                px: 2,
+                                py: 1,
+                                fontSize: "0.875rem",
+                              }}
+                            />
+                          </Box>
+                          {selectedCommande?.status === "En cours" && (
+                            <Button
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                              sx={{ borderRadius: 2 }}
+                            >
+                              Mettre à jour le statut
+                            </Button>
+                          )}
                         </Box>
                       </Box>
                     </Grid>
                   </Grid>
                 </Box>
 
-                <Divider sx={{ my: 3 }} />
-
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Articles commandés
+                {/* Section Articles commandés avec design amélioré */}
+                <Box
+                  sx={{
+                    mb: 4,
+                    p: 3,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    borderRadius: 2,
+                    background: "#ffffff",
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 3,
+                      fontWeight: 600,
+                      color: "text.primary",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <ShoppingCart color="primary" />
+                    Articles Commandés
                   </Typography>
 
-                  <TableContainer component={Paper} sx={{ boxShadow: "none" }}>
+                  <TableContainer
+                    component={Paper}
+                    sx={{
+                      boxShadow: "none",
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
                     <Table>
                       <TableHead>
-                        <TableRow sx={{ bgcolor: "background.default" }}>
-                          <TableCell sx={{ fontWeight: 600 }}>
+                        <TableRow
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, #3a4b6d 0%, #1a2a4a 100%)",
+                          }}
+                        >
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: "white",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             Article
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontWeight: 600,
+                              color: "white",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             Quantité
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontWeight: 600,
+                              color: "white",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             Prix unitaire
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontWeight: 600,
+                              color: "white",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             Total
                           </TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {details.map((detail) => (
-                          <TableRow key={detail.id}>
+                          <TableRow key={detail.id} hover>
                             <TableCell>
                               <Box
                                 sx={{
@@ -905,46 +1039,115 @@ const CommandeList = () => {
                                   sx={{
                                     bgcolor: "primary.main",
                                     color: "white",
+                                    width: 40,
+                                    height: 40,
                                   }}
                                 >
-                                  {detail.piece_name?.charAt(0)}
+                                  {detail.piece_name?.charAt(0).toUpperCase()}
                                 </Avatar>
-                                <Typography fontWeight={500}>
-                                  {detail.piece_name}
-                                </Typography>
+                                <Box>
+                                  <Typography fontWeight={600}>
+                                    {detail.piece_name}
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                  >
+                                    Réf: {detail.id}
+                                  </Typography>
+                                </Box>
                               </Box>
                             </TableCell>
                             <TableCell align="right">
-                              {detail.quantity}
+                              <Chip
+                                label={detail.quantity}
+                                color="primary"
+                                variant="outlined"
+                                size="small"
+                              />
                             </TableCell>
                             <TableCell align="right">
-                              {detail.price?.toFixed(2)} €
+                              {detail.price?.toLocaleString("fr-FR", {
+                                style: "currency",
+                                currency: "EUR",
+                                minimumFractionDigits: 2,
+                              })}
                             </TableCell>
                             <TableCell align="right">
-                              {(detail.price * detail.quantity)?.toFixed(2)} €
+                              <Typography fontWeight={600}>
+                                {(
+                                  detail.price * detail.quantity
+                                )?.toLocaleString("fr-FR", {
+                                  style: "currency",
+                                  currency: "EUR",
+                                  minimumFractionDigits: 2,
+                                })}
+                              </Typography>
                             </TableCell>
                           </TableRow>
                         ))}
-                        <TableRow sx={{ bgcolor: "background.default" }}>
-                          <TableCell
-                            colSpan={3}
-                            align="right"
-                            sx={{ fontWeight: 600 }}
-                          >
+                        <TableRow
+                          sx={{
+                            background: "rgba(0,0,0,0.02)",
+                            "& td": {
+                              fontWeight: 600,
+                              fontSize: "0.9375rem",
+                            },
+                          }}
+                        >
+                          <TableCell colSpan={3} align="right">
                             Total général
                           </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            {selectedCommande?.montant?.toFixed(2)} €
+                          <TableCell align="right">
+                            {selectedCommande?.montant?.toLocaleString(
+                              "fr-FR",
+                              {
+                                style: "currency",
+                                currency: "EUR",
+                                minimumFractionDigits: 2,
+                              }
+                            )}
                           </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </TableContainer>
                 </Box>
+
+                {/* Section supplémentaire pour les notes ou commentaires */}
+                <Box
+                  sx={{
+                    p: 3,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    borderRadius: 2,
+                    background: "#ffffff",
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 2,
+                      fontWeight: 600,
+                      color: "text.primary",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <Notes color="primary" />
+                    Notes supplémentaires
+                  </Typography>
+                  <Typography
+                    color="text.secondary"
+                    sx={{ fontStyle: "italic" }}
+                  >
+                    {selectedCommande?.notes ||
+                      "Aucune note supplémentaire pour cette commande."}
+                  </Typography>
+                </Box>
               </>
             )}
           </DialogContent>
-
           <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
             <Button
               onClick={() => setDetailsOpen(false)}

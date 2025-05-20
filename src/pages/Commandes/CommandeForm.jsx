@@ -105,71 +105,75 @@ const CommandeForm = ({ open, onClose, refreshCommandes, commandeToEdit }) => {
     }
   };
 
-const fetchUsers = async (token) => {
-  try {
-    const instance = axiosWithAuth(token);
-    const response = await instance.get(USERS_URL);
-    console.log('Réponse complète users:', response); 
-    
-    // Solution 1: Vérification approfondie de la réponse
-    if (!response.data) {
-      throw new Error('Réponse vide de l\'API users');
-    }
-    
-    // Solution 2: Gestion des différents formats de réponse
-    const usersData = response.data.data || response.data;
-    
-    if (!Array.isArray(usersData)) {
-      throw new Error('Format de données utilisateurs invalide');
-    }
-    
-    return usersData;
-  } catch (error) {
-    console.error('Erreur fetchUsers:', error.response?.data || error.message);
-    throw error; // Important pour le Promise.all
-  }
-};
-const fetchClientsAndUsers = async () => {
-  setLoadingData(true);
+  const fetchUsers = async (token) => {
+    try {
+      const instance = axiosWithAuth(token);
+      const response = await instance.get(USERS_URL);
+      console.log("Réponse complète users:", response);
 
-  try {
-    const token = getAuthToken();
-    if (!token) {
-      handleLogout();
-      return;
-    }
+      // Solution 1: Vérification approfondie de la réponse
+      if (!response.data) {
+        throw new Error("Réponse vide de l'API users");
+      }
 
-    // Solution 3: Chargement séparé avec gestion d'erreur indépendante
-    let clientsData = [];
-    let usersData = [];
+      // Solution 2: Gestion des différents formats de réponse
+      const usersData = response.data.data || response.data;
+
+      if (!Array.isArray(usersData)) {
+        throw new Error("Format de données utilisateurs invalide");
+      }
+
+      return usersData;
+    } catch (error) {
+      console.error(
+        "Erreur fetchUsers:",
+        error.response?.data || error.message
+      );
+      throw error; // Important pour le Promise.all
+    }
+  };
+
+  const fetchClientsAndUsers = async () => {
+    setLoadingData(true);
 
     try {
-      clientsData = await fetchClients(token);
-    } catch (e) {
-      console.error("Erreur clients seulement:", e);
-      Swal.fire("Erreur", "Chargement clients échoué", "warning");
+      const token = getAuthToken();
+      if (!token) {
+        handleLogout();
+        return;
+      }
+
+      // Solution 3: Chargement séparé avec gestion d'erreur indépendante
+      let clientsData = [];
+      let usersData = [];
+
+      try {
+        clientsData = await fetchClients(token);
+      } catch (e) {
+        console.error("Erreur clients seulement:", e);
+        Swal.fire("Erreur", "Chargement clients échoué", "warning");
+      }
+
+      try {
+        usersData = await fetchUsers(token);
+      } catch (e) {
+        console.error("Erreur users seulement:", e);
+        Swal.fire("Erreur", "Chargement utilisateurs échoué", "warning");
+      }
+
+      setClients(clientsData);
+      setUsers(usersData);
+
+      // Solution 4: Logs de contrôle
+      console.log("Clients chargés:", clientsData.length);
+      console.log("Users chargés:", usersData.length);
+    } catch (error) {
+      console.error("Erreur globale:", error);
+      Swal.fire("Erreur", "Problème de chargement des données", "error");
+    } finally {
+      setLoadingData(false);
     }
-
-    try {
-      usersData = await fetchUsers(token);
-    } catch (e) {
-      console.error("Erreur users seulement:", e);
-      Swal.fire("Erreur", "Chargement utilisateurs échoué", "warning");
-    }
-
-    setClients(clientsData);
-    setUsers(usersData);
-
-    // Solution 4: Logs de contrôle
-    console.log("Clients chargés:", clientsData.length);
-    console.log("Users chargés:", usersData.length);
-  } catch (error) {
-    console.error("Erreur globale:", error);
-    Swal.fire("Erreur", "Problème de chargement des données", "error");
-  } finally {
-    setLoadingData(false);
-  }
-};
+  };
 
   useEffect(() => {
     if (open) {
@@ -282,7 +286,7 @@ const fetchClientsAndUsers = async () => {
         <Box>
           <Typography>{option.name}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {option.email} | {option.telephone || "N/A"}
+            {option.email} | {option.phone || "N/A"}
           </Typography>
         </Box>
       </Box>
@@ -461,7 +465,7 @@ const fetchClientsAndUsers = async () => {
                     InputLabelProps={{ shrink: true }}
                   />
 
-            { /*     <TextField
+                  <TextField
                     label="Montant total *"
                     type="number"
                     value={formData.montant}
@@ -478,13 +482,13 @@ const fetchClientsAndUsers = async () => {
                         </InputAdornment>
                       ),
                     }}
-                  />*/}
+                  />
 
                   <Autocomplete
                     id="statut-select"
                     options={statutOptions}
                     value={formData.status}
-                    onChange={(e, newValue) => handleChange("statut", newValue)}
+                    onChange={(e, newValue) => handleChange("status", newValue)}
                     renderInput={(params) => (
                       <TextField {...params} label="Statut de la commande" />
                     )}

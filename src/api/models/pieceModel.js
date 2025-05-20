@@ -1,46 +1,53 @@
-const db = require('../config/db');
+const db = require("../config/db"); // Assurez-vous que db = mysql2.createPool(...).promise()
+
 const Piece = {
-  getAll: (callback) => {
-    const sql = 'SELECT * FROM pieces';
-    db.query(sql, callback);
+  getAll: async () => {
+    const [rows] = await db.query("SELECT * FROM pieces");
+    return rows;
   },
 
-  getById: (id, callback) => {
-    const sql = 'SELECT * FROM pieces WHERE id = ?';
-    db.query(sql, [id], callback);
+  getById: async (id) => {
+    const [rows] = await db.query("SELECT * FROM pieces WHERE id = ?", [id]);
+    return rows[0]; // retourne un seul objet
   },
 
-  create: (data, callback) => {
-    const sql = `INSERT INTO pieces (name, description, price, image, category_id, fournisseur_id)
-                 VALUES (?, ?, ?, ?, ?, ?)`;
-    db.query(sql, [
-      data.name,
-      data.description,
-      data.price,
-      data.image,
-      data.category_id,
-      data.fournisseur_id
-    ], callback);
-  },
-
-  update: (id, data, callback) => {
-    const sql = `UPDATE pieces SET name = ?, description = ?, price = ?, image = ?, category_id = ?, fournisseur_id = ?
-                 WHERE id = ?`;
-    db.query(sql, [
+  create: async (data) => {
+    const sql = `
+      INSERT INTO pieces (name, description, price, image, category_id, fournisseur_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    const [result] = await db.query(sql, [
       data.name,
       data.description,
       data.price,
       data.image,
       data.category_id,
       data.fournisseur_id,
-      id
-    ], callback);
+    ]);
+    return result.insertId; // retourne l’ID inséré
   },
 
-  delete: (id, callback) => {
-    const sql = 'DELETE FROM pieces WHERE id = ?';
-    db.query(sql, [id], callback);
-  }
+  update: async (id, data) => {
+    const sql = `
+      UPDATE pieces SET name = ?, description = ?, price = ?, image = ?, category_id = ?, fournisseur_id = ?
+      WHERE id = ?
+    `;
+    const [result] = await db.query(sql, [
+      data.name,
+      data.description,
+      data.price,
+      data.image,
+      data.category_id,
+      data.fournisseur_id,
+      id,
+    ]);
+    return result.affectedRows > 0;
+  },
+
+  delete: async (id) => {
+    const [result] = await db.query("DELETE FROM pieces WHERE id = ?", [id]);
+    return result.affectedRows > 0;
+  },
 };
 
 module.exports = Piece;

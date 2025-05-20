@@ -15,10 +15,11 @@ import {
   CircularProgress,
   Autocomplete,
   Avatar,
-  Chip,
   InputAdornment,
   Grid,
   Alert,
+  Chip,
+  LinearProgress,
 } from "@mui/material";
 import {
   Close,
@@ -30,13 +31,16 @@ import {
   Category,
   LocalShipping,
   Refresh,
+  CloudUpload,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5000/api/pieces";
+const CATEGORIES_URL = "http://localhost:5000/api/categories";
+const FOURNISSEURS_URL = "http://localhost:5000/api/fournisseurs";
+const UPLOAD_URL = "http://localhost:5000/api/upload";
 
 const PremiumDialog = styled(Dialog)(({ theme }) => ({
   "& .MuiPaper-root": {
@@ -46,33 +50,6 @@ const PremiumDialog = styled(Dialog)(({ theme }) => ({
     boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
   },
 }));
-
-// Création d'une instance Axios configurée
-const createApiClient = () => {
-  const token = localStorage.getItem("token");
-  const instance = axios.create({
-    baseURL: "http://localhost:5000/api",
-    timeout: 8000,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  instance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.code === "ECONNABORTED") {
-        return Promise.reject(
-          new Error("La requête a expiré - Vérifiez votre connexion")
-        );
-      }
-      return Promise.reject(error);
-    }
-  );
-
-  return instance;
-};
 
 const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
   const [formData, setFormData] = useState({
@@ -85,6 +62,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     category_id: "",
     fournisseur_id: "",
   });
+
   const [categories, setCategories] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [errors, setErrors] = useState({});
@@ -93,103 +71,45 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
-  const navigate = useNavigate();
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const logError = (error, context) => {
-    const errorInfo = {
-      date: new Date().toISOString(),
-      error: error.message,
-      context,
-      route: window.location.pathname,
-    };
-
-    // Envoyer l'erreur au backend (optionnel)
-    axios.post("/api/error-log", errorInfo).catch(console.error);
-
-    if (process.env.NODE_ENV === "development") {
-      console.groupCollapsed(`Erreur: ${context}`);
-      console.error(errorInfo);
-      console.groupEnd();
-    }
-  };
-
-  const fetchPaginatedData = async (endpoint) => {
-    try {
-      const api = createApiClient();
-      let allData = [];
-      let page = 1;
-      let hasMore = true;
-
-      while (hasMore && page < 10) {
-        // Limite de sécurité à 10 pages
-        const res = await api.get(`${endpoint}?page=${page}&limit=100`);
-        if (res.data.length === 0) {
-          hasMore = false;
-        } else {
-          allData = [...allData, ...res.data];
-          page++;
-        }
-      }
-
-      return allData;
-    } catch (error) {
-      throw error;
-    }
-  };
-
+  // Fonction améliorée pour charger les données initiales
   const fetchInitialData = async () => {
     setLoadingData(true);
     setDataError(null);
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Session expirée - Veuillez vous reconnecter");
-      }
-
-      const api = createApiClient();
-
       const [categoriesRes, fournisseursRes] = await Promise.all([
-        fetchPaginatedData("/categories").catch((e) => {
-          throw new Error(`Catégories: ${e.message}`);
-        }),
-        fetchPaginatedData("/fournisseurs").catch((e) => {
-          throw new Error(`Fournisseurs: ${e.message}`);
-        }),
+        axios.get(CATEGORIES_URL),
+        axios.get(FOURNISSEURS_URL),
       ]);
 
-      // Validation des données
-      const verifyData = (data, name) => {
-        if (!Array.isArray(data)) {
-          throw new Error(`Format invalide pour ${name}`);
-        }
-        return data;
-      };
+      // Vérification et normalisation des données
+      const normalizedCategories = Array.isArray(categoriesRes.data)
+        ? categoriesRes.data
+        : [];
 
-      setCategories(verifyData(categoriesRes, "catégories"));
-      setFournisseurs(verifyData(fournisseursRes, "fournisseurs"));
+      const normalizedFournisseurs = Array.isArray(fournisseursRes.data)
+        ? fournisseursRes.data
+        : [];
 
-      if (categoriesRes.length === 0 || fournisseursRes.length === 0) {
-        Swal.fire({
-          title: "Données partielles",
-          text: "Certaines données sont manquantes",
-          icon: "warning",
-          timer: 3000,
-        });
+      setCategories(normalizedCategories);
+      setFournisseurs(normalizedFournisseurs);
+
+      if (normalizedFournisseurs.length === 0) {
+        console.warn("Aucun fournisseur récupéré - vérifiez le endpoint API");
       }
     } catch (error) {
-      logError(error, "fetchInitialData");
-      setDataError(error.message);
-
-      if (error.message.includes("Session") || error.response?.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
+      console.error("Erreur lors du chargement des données:", error);
+      setDataError(`Erreur de chargement: ${error.message}`);
+      throw error;
     } finally {
       setLoadingData(false);
     }
   };
 
+  // Fonction de réessai améliorée
   const fetchWithRetry = async () => {
     try {
       await fetchInitialData();
@@ -198,7 +118,9 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         setRetryCount((c) => c + 1);
         setTimeout(fetchWithRetry, 2000 * retryCount);
       } else {
-        setDataError("Échec après 3 tentatives. Vérifiez votre connexion.");
+        setDataError(
+          "Échec après 3 tentatives. Vérifiez votre connexion et les endpoints API."
+        );
       }
     }
   };
@@ -210,6 +132,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
   }, [open]);
 
+  // Initialisation du formulaire
   useEffect(() => {
     if (pieceToEdit) {
       setFormData({
@@ -236,6 +159,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
     setErrors({});
     setIsSuccess(false);
+    setUploadProgress(0);
   }, [pieceToEdit, open]);
 
   const handleChange = (name, value) => {
@@ -243,36 +167,63 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  // Validation améliorée du formulaire
   const validateForm = () => {
     const newErrors = {};
+
     if (!formData.name.trim()) newErrors.name = "Nom requis";
+    if (formData.name.length > 100)
+      newErrors.name = "Nom trop long (max 100 caractères)";
+
     if (!formData.reference.trim()) newErrors.reference = "Référence requise";
+    if (formData.reference.length > 50)
+      newErrors.reference = "Référence trop longue (max 50 caractères)";
+
     if (formData.price <= 0) newErrors.price = "Prix doit être positif";
+    if (formData.price > 1000000) newErrors.price = "Prix trop élevé";
+
     if (formData.stock_quantity < 0)
       newErrors.stock_quantity = "Stock invalide";
+    if (formData.stock_quantity > 100000)
+      newErrors.stock_quantity = "Stock trop élevé";
+
     if (!formData.category_id) newErrors.category_id = "Catégorie requise";
+
+    // Validation optionnelle du fournisseur
+    if (
+      formData.fournisseur_id &&
+      !fournisseurs.some((f) => f.id === formData.fournisseur_id)
+    ) {
+      newErrors.fournisseur_id = "Fournisseur invalide";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // Soumission du formulaire
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
     try {
-      const api = createApiClient();
       const payload = {
         ...formData,
         price: parseFloat(formData.price),
         stock_quantity: parseInt(formData.stock_quantity),
+        // Assurez-vous que les IDs sont des nombres si nécessaire
+        category_id: Number(formData.category_id),
+        fournisseur_id: formData.fournisseur_id
+          ? Number(formData.fournisseur_id)
+          : null,
       };
 
       if (pieceToEdit) {
-        await api.put(`/pieces/${pieceToEdit.id}`, payload);
+        await axios.put(`${API_URL}/${pieceToEdit.id}`, payload);
         Swal.fire("Succès", "Pièce mise à jour avec succès", "success");
       } else {
-        await api.post("/pieces", payload);
+        await axios.post(API_URL, payload);
         Swal.fire("Succès", "Pièce créée avec succès", "success");
       }
 
@@ -282,18 +233,14 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         onClose();
       }, 1500);
     } catch (error) {
-      logError(error, "handleSubmit");
+      console.error("Erreur:", error);
       let errorMessage = "Une erreur est survenue";
 
       if (error.response) {
-        if (error.response.status === 401) {
-          errorMessage = "Session expirée - Veuillez vous reconnecter";
-          localStorage.removeItem("token");
-          navigate("/login");
+        if (error.response.status === 409) {
+          errorMessage = "Une pièce avec cette référence existe déjà";
         } else if (error.response.data?.message) {
           errorMessage = error.response.data.message;
-        } else if (error.response.status === 400) {
-          errorMessage = "Données invalides";
         }
       }
 
@@ -303,38 +250,67 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
   };
 
+  // Upload d'image avec progression
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Vérifications du fichier
     if (file.size > 5 * 1024 * 1024) {
       Swal.fire("Erreur", "L'image ne doit pas dépasser 5MB", "error");
       return;
     }
 
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      Swal.fire(
+        "Erreur",
+        "Type de fichier non supporté (JPEG, PNG, WebP seulement)",
+        "error"
+      );
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
     try {
       const formData = new FormData();
       formData.append("image", file);
 
-      const api = createApiClient();
-      const response = await api.post("/upload", formData, {
+      const response = await axios.post(UPLOAD_URL, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setUploadProgress(percentCompleted);
+        },
       });
 
-      if (!response.data?.imageUrl) {
+      // Correction ici : construire une URL absolue si besoin
+      let imageUrl = response.data && response.data.url;
+      if (imageUrl && imageUrl.startsWith("/uploads")) {
+        imageUrl = `http://localhost:5000${imageUrl}`;
+      }
+      if (!imageUrl) {
         throw new Error("URL d'image manquante dans la réponse");
       }
 
-      handleChange("image", response.data.imageUrl);
+      handleChange("image", imageUrl);
+      Swal.fire("Succès", "Image uploadée avec succès", "success");
     } catch (error) {
-      logError(error, "handleImageUpload");
+      console.error("Erreur upload image:", error);
       Swal.fire(
         "Erreur",
-        error.response?.data?.message || "Échec de l'upload de l'image",
+        `Échec de l'upload de l'image: ${error.message}`,
         "error"
       );
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -343,6 +319,14 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     setRetryCount(0);
     fetchWithRetry();
   };
+
+  // Trouver les objets complets pour les valeurs sélectionnées
+  const selectedCategory = categories.find(
+    (cat) => cat.id === formData.category_id
+  );
+  const selectedFournisseur = fournisseurs.find(
+    (four) => four.id === formData.fournisseur_id
+  );
 
   return (
     <PremiumDialog
@@ -502,7 +486,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                       type="number"
                       value={formData.price}
                       onChange={(e) =>
-                        handleChange("price", parseFloat(e.target.value))
+                        handleChange("price", parseFloat(e.target.value) || 0)
                       }
                       InputProps={{
                         startAdornment: (
@@ -524,7 +508,10 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                       type="number"
                       value={formData.stock_quantity}
                       onChange={(e) =>
-                        handleChange("stock_quantity", parseInt(e.target.value))
+                        handleChange(
+                          "stock_quantity",
+                          parseInt(e.target.value) || 0
+                        )
                       }
                       InputProps={{
                         startAdornment: (
@@ -544,11 +531,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                     <Autocomplete
                       options={categories}
                       getOptionLabel={(option) => option.name || "Inconnu"}
-                      value={
-                        categories.find(
-                          (cat) => cat.id === formData.category_id
-                        ) || null
-                      }
+                      value={selectedCategory || null}
                       onChange={(e, newValue) =>
                         handleChange("category_id", newValue?.id || "")
                       }
@@ -571,6 +554,11 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                           }}
                         />
                       )}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.id}>
+                          {option.name}
+                        </li>
+                      )}
                       fullWidth
                       noOptionsText="Aucune catégorie disponible"
                       loading={loadingData}
@@ -581,11 +569,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                     <Autocomplete
                       options={fournisseurs}
                       getOptionLabel={(option) => option.name || "Inconnu"}
-                      value={
-                        fournisseurs.find(
-                          (four) => four.id === formData.fournisseur_id
-                        ) || null
-                      }
+                      value={selectedFournisseur || null}
                       onChange={(e, newValue) =>
                         handleChange("fournisseur_id", newValue?.id || "")
                       }
@@ -593,6 +577,8 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                         <TextField
                           {...params}
                           label="Fournisseur"
+                          error={!!errors.fournisseur_id}
+                          helperText={errors.fournisseur_id}
                           InputProps={{
                             ...params.InputProps,
                             startAdornment: (
@@ -606,8 +592,24 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                           }}
                         />
                       )}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.id}>
+                          {option.name}
+                          {option.contact && (
+                            <Chip
+                              label={option.contact}
+                              size="small"
+                              sx={{ ml: 1 }}
+                            />
+                          )}
+                        </li>
+                      )}
                       fullWidth
-                      noOptionsText="Aucun fournisseur disponible"
+                      noOptionsText={
+                        fournisseurs.length === 0
+                          ? "Aucun fournisseur disponible"
+                          : "Aucun résultat"
+                      }
                       loading={loadingData}
                     />
                   </Grid>
@@ -615,23 +617,46 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                   <Grid item xs={12} md={6}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <Avatar
-                        src={formData.image || "/default-part.png"}
+                        src={
+                          formData.image
+                            ? formData.image.startsWith("http")
+                              ? formData.image
+                              : formData.image.startsWith("/uploads")
+                              ? `http://localhost:5000${formData.image}`
+                              : "/default-part.png"
+                            : "/default-part.png"
+                        }
                         sx={{ width: 80, height: 80 }}
                         variant="rounded"
                       />
-                      <Button
-                        variant="contained"
-                        component="label"
-                        disabled={isSubmitting}
-                      >
-                        Uploader Image
-                        <input
-                          type="file"
-                          hidden
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                        />
-                      </Button>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Button
+                          variant="contained"
+                          component="label"
+                          disabled={isSubmitting || isUploading}
+                          startIcon={<CloudUpload />}
+                          fullWidth
+                        >
+                          Uploader Image
+                          <input
+                            type="file"
+                            hidden
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleImageUpload}
+                          />
+                        </Button>
+                        {isUploading && (
+                          <Box sx={{ mt: 1 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={uploadProgress}
+                            />
+                            <Typography variant="caption">
+                              {uploadProgress}% complété
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
                   </Grid>
                 </Grid>

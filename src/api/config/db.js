@@ -73,6 +73,8 @@ UNIQUE KEY (user\_id)
       marque VARCHAR(50) NOT NULL,
       modele VARCHAR(50) NOT NULL,
       immatriculation VARCHAR(20) NOT NULL UNIQUE,
+      status ENUM('disponible', 'indisponible') DEFAULT 'disponible',
+      type ENUM('personnel', 'commercial') DEFAULT 'personnel',
       annee INT NOT NULL,
       kilometrage INT NOT NULL,
       date_ajout TIMESTAMP DEFAULT CURRENT_TIMESTAMP

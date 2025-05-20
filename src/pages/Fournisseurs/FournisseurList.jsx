@@ -30,6 +30,7 @@ import {
   FilterList,
   Refresh,
   Business,
+  DateRange,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
@@ -85,6 +86,8 @@ const FournisseurList = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const fetchFournisseurs = async () => {
     try {
@@ -168,13 +171,27 @@ const FournisseurList = () => {
     setPage(0);
   };
 
-  const filteredFournisseurs = fournisseurs.filter((fournisseur) =>
-    Object.values(fournisseur).some(
+  const filteredFournisseurs = fournisseurs.filter((fournisseur) => {
+    // Filtre par recherche texte
+    const matchesSearch = Object.values(fournisseur).some(
       (value) =>
         value &&
         value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+    );
+
+    // Filtre par date si les deux dates sont définies
+    if (startDate && endDate && fournisseur.date_ajout) {
+      const fournisseurDate = new Date(fournisseur.date_ajout);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      return (
+        matchesSearch && fournisseurDate >= start && fournisseurDate <= end
+      );
+    }
+
+    return matchesSearch;
+  });
 
   const emptyRows =
     rowsPerPage -
@@ -225,6 +242,7 @@ const FournisseurList = () => {
                 gap: 2,
                 width: { xs: "100%", sm: "auto" },
                 alignItems: "center",
+                flexWrap: "wrap",
               }}
             >
               <TextField
@@ -263,11 +281,53 @@ const FournisseurList = () => {
                 }}
               />
 
-              <Tooltip title="Filtrer" arrow>
-                <IconButton sx={{ color: "white" }}>
-                  <FilterList />
-                </IconButton>
-              </Tooltip>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <Tooltip title="Filtrer par date" arrow>
+                  <DateRange sx={{ color: "white" }} />
+                </Tooltip>
+                <TextField
+                  size="small"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  label="De"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  sx={{
+                    width: 150,
+                    "& .MuiInputBase-root": {
+                      borderRadius: 50,
+                      background: "rgba(255,255,255,0.15)",
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "white",
+                    },
+                    "& .MuiInputBase-input": {
+                      color: "white",
+                    },
+                  }}
+                />
+                <TextField
+                  size="small"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  label="À"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  sx={{
+                    width: 150,
+                    "& .MuiInputBase-root": {
+                      borderRadius: 50,
+                      background: "rgba(255,255,255,0.15)",
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "white",
+                    },
+                    "& .MuiInputBase-input": {
+                      color: "white",
+                    },
+                  }}
+                />
+              </Box>
 
               <Tooltip title="Actualiser" arrow>
                 <IconButton
@@ -413,7 +473,8 @@ const FournisseurList = () => {
                                 width: 56,
                                 height: 56,
                                 border: "2px solid #667eea",
-                                boxShadow: "0 4px 12px rgba(102, 126, 234, 0.2)",
+                                boxShadow:
+                                  "0 4px 12px rgba(102, 126, 234, 0.2)",
                               }}
                             >
                               {fournisseur.nom?.charAt(0)}
@@ -443,35 +504,19 @@ const FournisseurList = () => {
                               {fournisseur.adresse}
                             </Typography>
                           </TableCell>
-                           <TableCell>
+                          <TableCell>
                             <Typography variant="body2">
                               {fournisseur.date_ajout}
                             </Typography>
                           </TableCell>
-                 {      /*   <TableCell>
-                            <Chip
-                              label={
-                                fournisseur.status === "active"
-                                  ? "Actif"
-                                  : "Inactif"
-                              }
-                              color={
-                                fournisseur.status === "active"
-                                  ? "success"
-                                  : "default"
-                              }
-                              size="small"
-                              sx={{
-                                borderRadius: 1,
-                                fontWeight: 600,
-                                textTransform: "capitalize",
-                                minWidth: 80,
-                                justifyContent: "center",
-                              }}
-                            />
-                          </TableCell>*/}
                           <TableCell align="right">
-                            <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                gap: 1,
+                              }}
+                            >
                               <Tooltip title="Modifier" arrow>
                                 <IconButton
                                   onClick={() => handleEdit(fournisseur)}

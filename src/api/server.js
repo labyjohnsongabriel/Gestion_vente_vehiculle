@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const db = require("./config/db");
+const path = require("path");
 
 dotenv.config();
 
@@ -11,6 +12,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // Tester la connexion à la base
 db.getConnection()
@@ -36,6 +39,7 @@ app.use("/api/vehicules", require("./routes/vehiculeRoutes"));
 app.use("/api/stocks", require("./routes/stockRoutes"));
 app.use("/api/pieceVehicule", require("./routes/pieceVehiculeRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
 
 // Route d'accueil
 app.get("/", (req, res) => {

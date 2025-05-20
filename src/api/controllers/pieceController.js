@@ -1,186 +1,210 @@
+const db = require("../config/db");
 const fs = require("fs");
 const path = require("path");
-const Piece = require("../models/pieceModel");
 
+// ✅ Obtenir toutes les pièces
 exports.getAllPieces = async (req, res) => {
   try {
-    const pieces = await Piece.findAll();
+    const [rows] = await db.query("SELECT * FROM pieces");
     res.status(200).json({
       status: "success",
-      results: pieces.length,
-      data: { pieces },
+      results: rows.length,
+      data: rows, // ✅ Renvoie un tableau directement dans `data`
     });
   } catch (err) {
-    res.status(500).json({
-      status: "error",
-      message: "Erreur lors de la récupération des pièces",
-      error: err.message,
-    });
+    console.error("[getAllPieces] Erreur:", err.message);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des pièces." });
   }
 };
 
+// ✅ Obtenir une pièce par ID
 exports.getPiece = async (req, res) => {
   try {
-    const piece = await Piece.findByPk(req.params.id);
-    if (!piece) {
-      return res.status(404).json({
-        status: "error",
-        message: "Pièce non trouvée",
-      });
+    const [rows] = await db.query("SELECT * FROM pieces WHERE id = ?", [
+      req.params.id,
+    ]);
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Pièce non trouvée." });
     }
-
-    res.status(200).json({
-      status: "success",
-      data: { piece },
-    });
+    res.status(200).json({ status: "success", data: rows[0] });
   } catch (err) {
-    res.status(500).json({
-      status: "error",
-      message: "Erreur lors de la récupération de la pièce",
-      error: err.message,
-    });
+    console.error("[getPiece] Erreur:", err.message);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération de la pièce." });
   }
 };
 
+// ✅ Créer une nouvelle pièce
 exports.createPiece = async (req, res) => {
   try {
     const { name, reference, description, price, category_id, fournisseur_id } =
       req.body;
     const image = req.file ? `/uploads/pieces/${req.file.filename}` : null;
 
-    const newPiece = await Piece.create({
-      name,
-      reference,
-      description,
-      price,
-      image,
-      category_id,
-      fournisseur_id,
-    });
+    const [result] = await db.query(
+      "INSERT INTO pieces (name, reference, description, price, image, category_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [name, reference, description, price, image, category_id, fournisseur_id]
+    );
 
     res.status(201).json({
       status: "success",
-      data: { piece: newPiece },
+      data: {
+        id: result.insertId,
+        name,
+        reference,
+        description,
+        price,
+        image,
+        category_id,
+        fournisseur_id,
+      },
     });
   } catch (err) {
-    res.status(400).json({
-      status: "error",
-      message: "Erreur lors de la création de la pièce",
-      error: err.message,
-    });
+    console.error("[createPiece] Erreur:", err.message);
+    res.status(500).json({ error: "Erreur lors de la création de la pièce." });
   }
 };
 
+// ✅ Mettre à jour une pièce
 exports.updatePiece = async (req, res) => {
   try {
-    const piece = await Piece.findByPk(req.params.id);
-    if (!piece) {
-      return res.status(404).json({
-        status: "error",
-        message: "Pièce non trouvée",
-      });
-    }
+    const { name, reference, description, price, category_id, fournisseur_id } =
+      req.body;
+    let image = null;
 
-    const updates = req.body;
+    // Récupérer l'ancienne pièce
+    const [oldRows] = await db.query("SELECT image FROM pieces WHERE id = ?", [
+      req.params.id,
+    ]);
+    if (oldRows.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Pièce non trouvée." });
+    }
 
     if (req.file) {
-      updates.image = `/uploads/pieces/${req.file.filename}`;
-
-      // Supprimer l'ancienne image si elle existe
-      if (piece.image) {
-        const oldImagePath = path.join(__dirname, "../public", piece.image);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
-      }
-    }
-
-    await piece.update(updates);
-
-    res.status(200).json({
-      status: "success",
-      data: { piece },
-    });
-  } catch (err) {
-    res.status(400).json({
-      status: "error",
-      message: "Erreur lors de la mise à jour de la pièce",
-      error: err.message,
-    });
-  }
-};
-
-exports.deletePiece = async (req, res) => {
-  try {
-    const piece = await Piece.findByPk(req.params.id);
-    if (!piece) {
-      return res.status(404).json({
-        status: "error",
-        message: "Pièce non trouvée",
-      });
-    }
-
-    // Supprimer l'image associée si elle existe
-    if (piece.image) {
-      const imagePath = path.join(__dirname, "../public", piece.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
-    }
-
-    await piece.destroy();
-
-    res.status(204).json({
-      status: "success",
-      data: null,
-    });
-  } catch (err) {
-    res.status(500).json({
-      status: "error",
-      message: "Erreur lors de la suppression de la pièce",
-      error: err.message,
-    });
-  }
-};
-
-exports.uploadPieceImage = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        status: "error",
-        message: "Veuillez télécharger une image",
-      });
-    }
-
-    const piece = await Piece.findByPk(req.params.id);
-    if (!piece) {
-      return res.status(404).json({
-        status: "error",
-        message: "Pièce non trouvée",
-      });
-    }
-
-    // Supprimer l'ancienne image
-    if (piece.image) {
-      const oldImagePath = path.join(__dirname, "../public", piece.image);
+      image = `/uploads/pieces/${req.file.filename}`;
+      const oldImagePath = path.join(
+        __dirname,
+        "../public",
+        oldRows[0].image || ""
+      );
       if (fs.existsSync(oldImagePath)) {
         fs.unlinkSync(oldImagePath);
       }
     }
 
-    // Mettre à jour l'image
-    const newImagePath = `/uploads/pieces/${req.file.filename}`;
-    await piece.update({ image: newImagePath });
+    const [result] = await db.query(
+      "UPDATE pieces SET name = ?, reference = ?, description = ?, price = ?, image = COALESCE(?, image), category_id = ?, fournisseur_id = ? WHERE id = ?",
+      [
+        name,
+        reference,
+        description,
+        price,
+        image,
+        category_id,
+        fournisseur_id,
+        req.params.id,
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Pièce non mise à jour." });
+    }
+
+    res
+      .status(200)
+      .json({ status: "success", message: "Pièce mise à jour avec succès." });
+  } catch (err) {
+    console.error("[updatePiece] Erreur:", err.message);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la mise à jour de la pièce." });
+  }
+};
+
+// ✅ Supprimer une pièce
+exports.deletePiece = async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT image FROM pieces WHERE id = ?", [
+      req.params.id,
+    ]);
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Pièce non trouvée." });
+    }
+
+    if (rows[0].image) {
+      const imagePath = path.join(__dirname, "../public", rows[0].image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    await db.query("DELETE FROM pieces WHERE id = ?", [req.params.id]);
+
+    res
+      .status(200)
+      .json({ status: "success", message: "Pièce supprimée avec succès." });
+  } catch (err) {
+    console.error("[deletePiece] Erreur:", err.message);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la suppression de la pièce." });
+  }
+};
+
+// ✅ Télécharger une nouvelle image pour une pièce
+exports.uploadPieceImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Aucune image téléchargée." });
+    }
+
+    const imagePath = `/uploads/pieces/${req.file.filename}`;
+
+    const [oldRows] = await db.query("SELECT image FROM pieces WHERE id = ?", [
+      req.params.id,
+    ]);
+    if (oldRows.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Pièce non trouvée." });
+    }
+
+    // Supprimer l'ancienne image
+    if (oldRows[0].image) {
+      const oldImagePath = path.join(__dirname, "../public", oldRows[0].image);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    await db.query("UPDATE pieces SET image = ? WHERE id = ?", [
+      imagePath,
+      req.params.id,
+    ]);
 
     res.status(200).json({
       status: "success",
-      data: { piece },
+      message: "Image mise à jour avec succès.",
+      imagePath,
     });
   } catch (err) {
-    res.status(500).json({
-      status: "error",
-      message: "Erreur lors du téléchargement de l'image",
-      error: err.message,
-    });
+    console.error("[uploadPieceImage] Erreur:", err.message);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de l’enregistrement de l’image." });
   }
 };

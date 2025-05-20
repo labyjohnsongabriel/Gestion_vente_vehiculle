@@ -2,12 +2,13 @@ const db = require("../config/db");
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
+const QRCode = require("qrcode");
 
 const Facture = {
   getAll: async () => {
     const sql = `
-      SELECT factures.*, commandes.id AS commande_ref, clients.name AS client_name,
-              clients.email AS client_email, clients.address AS client_address
+      SELECT factures.*, commandes.id AS commande_ref, clients.name AS client_name, 
+             clients.email AS client_email, clients.address AS client_address
       FROM factures
       JOIN commandes ON factures.commande_id = commandes.id
       JOIN clients ON commandes.client_id = clients.id
@@ -20,7 +21,7 @@ const Facture = {
     const sql = `
       SELECT factures.*, commandes.id AS commande_ref, clients.name AS client_name,
              clients.email AS client_email, clients.address AS client_address,
-             commandes.date AS commande_date, commandes.total AS commande_total
+             commandes.created_at AS commande_date, factures.total AS commande_total
       FROM factures
       JOIN commandes ON factures.commande_id = commandes.id
       JOIN clients ON commandes.client_id = clients.id
@@ -32,8 +33,7 @@ const Facture = {
 
   create: async (data) => {
     const { commande_id, total } = data;
-    const sql =
-      "INSERT INTO factures (commande_id, total, date_facture) VALUES (?, ?, NOW())";
+    const sql = "INSERT INTO factures (commande_id, total) VALUES (?, ?)";
     const [result] = await db.query(sql, [commande_id, total]);
     return result.insertId;
   },
@@ -44,24 +44,83 @@ const Facture = {
     return result.affectedRows > 0;
   },
 
-  // Fonction pour récupérer les lignes de commande associées à une commande
-// Fonction pour récupérer les lignes de commande associées à une commande
-getLignesCommande: async (commandeId) => {
-  const sql = `
-    SELECT details_commande.*, pieces.name AS description
-    FROM details_commande
-    JOIN pieces ON details_commande.piece_id = pieces.id
-    WHERE commande_id = ?
-  `;
+  generatePDF: async (factureData) => {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument();
+      const fileName = `facture_${factureData.id}.pdf`;
+      const filePath = path.join(__dirname, "../public/factures", fileName);
+      const writeStream = fs.createWriteStream(filePath);
 
-  try {
-    const [rows] = await db.query(sql, [commandeId]);
+      doc.pipe(writeStream);
+
+      // Exemple de contenu du PDF
+      doc.fontSize(20).text("FACTURE", { align: "center" });
+      doc.moveDown();
+      doc.fontSize(12).text(`Numéro de facture: ${factureData.id}`);
+      doc.text(`Client: ${factureData.client_name}`);
+      doc.text(`Total: ${factureData.total} €`);
+      doc.text(`Date: ${new Date().toLocaleDateString("fr-FR")}`);
+
+      doc.end();
+
+      writeStream.on("finish", () => {
+        resolve({ path: filePath, fileName });
+      });
+
+      writeStream.on("error", (err) => {
+        reject(err);
+      });
+    });
+  },
+
+  // Méthode pour envoyer une facture par email
+  sendInvoiceByEmail: async (factureId, emailService) => {
+    try {
+      // Récupérer les détails de la facture
+      const factureData = await Facture.getById(factureId);
+      
+      // Générer le PDF
+      const { pdfPath } = await Facture.generatePDF(factureData);
+      
+      // Envoyer par email (nécessite un service d'email configuré)
+      await emailService.sendEmail({
+        to: factureData.client_email,
+        subject: `Facture N° ${factureData.invoice_number}`,
+        text: 'Veuillez trouver ci-joint votre facture.',
+        attachments: [
+          {
+            filename: `Facture_${factureData.invoice_number}.pdf`,
+            path: pdfPath
+          }
+        ]
+      });
+
+      // Mettre à jour le statut de la facture
+      await Facture.updateStatus(factureId, 'sent');
+
+      return true;
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi de la facture:', error);
+      throw error;
+    }
+  },
+
+  // Récupérer les lignes de commande associées à une commande (commande_ref)
+  getLignesCommande: async (commandeRef) => {
+    const [rows] = await db.query(
+      "SELECT description, quantite, prix_unitaire FROM lignes_commande WHERE commande_ref = ?",
+      [commandeRef]
+    );
     return rows;
-  } catch (error) {
-    console.error("Erreur lors de la récupération des lignes de commande:", error);
-    return [];
+  },
+
+  // Mettre à jour le statut PDF d'une facture (optionnel, selon votre table)
+  updatePdfStatus: async (factureId, status) => {
+    await db.query(
+      "UPDATE factures SET pdf_generated = ? WHERE id = ?",
+      [status ? 1 : 0, factureId]
+    );
   }
-},
 };
 
 module.exports = Facture;

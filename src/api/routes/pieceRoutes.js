@@ -1,19 +1,23 @@
 const express = require("express");
 const pieceController = require("../controllers/pieceController");
-const authMiddleware = require("../middleware/authMiddleware");
-console.log("pieceController :", pieceController); // Vérifiez que les fonctions sont bien importées
-console.log("authMiddleware :", authMiddleware); // Vérifiez que le middleware est bien importé
+const uploadController = require("../controllers/uploadController");
 
-const router = express.Router();console.log("pieceController :", pieceController);
+const router = express.Router();
 
-router.use(authMiddleware);
-// ✅ Protéger toutes les routes avec le middleware d'authentification
+router.post("/api/upload", uploadController.uploadImage);
+// ✅ Route pour récupérer toutes les pièces
 router.get("/", pieceController.getAllPieces);
-router.get("/:id", pieceController.getPiece);
-router.post("/", pieceController.createPiece);// ✅ Route pour récupérer toutes les pièces
-router.put("/:id", pieceController.updatePiece);
-router.delete("/:id", pieceController.deletePiece);
+
 // ✅ Route pour récupérer une pièce par ID
-module.exports = router;router.delete("/:id", pieceController.deletePiece);
+router.get("/:id", pieceController.getPiece);
+
+// ✅ Route pour créer une nouvelle pièce
+router.post("/", pieceController.createPiece);
+
+// ✅ Route pour mettre à jour une pièce
+router.put("/:id", pieceController.updatePiece);
+
+// ✅ Route pour supprimer une pièce
+router.delete("/:id", pieceController.deletePiece);
 
 module.exports = router;

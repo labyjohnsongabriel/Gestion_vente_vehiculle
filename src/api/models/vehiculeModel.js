@@ -19,11 +19,11 @@ const Vehicule = {
       annee,
       kilometrage,
       type,
-      status,
+      statut,
       date_ajout,
     } = data;
     const sql = `
-      INSERT INTO vehicules (marque, modele, immatriculation, annee, kilometrage, type, status, date_ajout)
+      INSERT INTO vehicules (marque, modele, immatriculation, annee, kilometrage, type, statut, date_ajout)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await db.query(sql, [
@@ -33,7 +33,7 @@ const Vehicule = {
       annee,
       kilometrage,
       type,
-      status,
+      statut,
       date_ajout,
     ]);
     return result;
@@ -47,12 +47,12 @@ const Vehicule = {
       annee,
       kilometrage,
       type,
-      status,
+      statut,
       date_ajout,
     } = data;
     const sql = `
       UPDATE vehicules 
-      SET marque = ?, modele = ?, immatriculation = ?, annee = ?, kilometrage = ?, type = ?, status = ?, date_ajout = ?
+      SET marque = ?, modele = ?, immatriculation = ?, annee = ?, kilometrage = ?, type = ?, statut = ?, date_ajout = ?
       WHERE id = ?
     `;
     const [result] = await db.query(sql, [
@@ -62,7 +62,7 @@ const Vehicule = {
       annee,
       kilometrage,
       type,
-      status,
+      statut,
       date_ajout,
       id,
     ]);

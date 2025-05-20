@@ -37,16 +37,17 @@ import Swal from "sweetalert2";
 import FactureForm from "./FactureForm";
 import axios from "axios";
 
-
 const API_URL = "http://localhost:5000/api/factures";
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
-    background: "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
+    background:
+      "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
   },
   "&:hover": {
-    background: "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    background:
+      "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
     transform: "scale(1.005)",
     boxShadow: theme.shadows[1],
     transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
@@ -153,118 +154,133 @@ const FactureList = () => {
       }
     });
   };
-const handleGeneratePDF = async (id) => {
-  try {
-    setLoading(true);
 
-    // Notification de début de génération
-    const toast = Swal.mixin({
-      toast: true,
-      position: "top-end",
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      didOpen: (toast) => {
-        toast.addEventListener("mouseenter", Swal.stopTimer);
-        toast.addEventListener("mouseleave", Swal.resumeTimer);
-      },
-    });
+  const handleGeneratePDF = async (id) => {
+    try {
+      setLoading(true);
 
-    toast.fire({
-      icon: "info",
-      title: "Génération du PDF en cours...",
-    });
+      // Notification de début de génération
+      const toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+          toast.addEventListener("mouseenter", Swal.stopTimer);
+          toast.addEventListener("mouseleave", Swal.resumeTimer);
+        },
+      });
 
-    // Appel API avec gestion du blob
-    const response = await axios.get(`${API_URL}/${id}/pdf`, {
-      responseType: "blob",
-      onDownloadProgress: (progressEvent) => {
-        // Optionnel: suivre la progression du téléchargement
-        console.log(
-          `Download progress: ${Math.round(
-            (progressEvent.loaded / progressEvent.total) * 100
-          )}%`
+      toast.fire({
+        icon: "info",
+        title: "Génération du PDF en cours...",
+      });
+
+      // Appel API avec gestion du blob et timeout
+      const response = await axios.get(`${API_URL}/${id}/pdf`, {
+        responseType: "blob",
+        timeout: 30000, // 30 secondes timeout
+        headers: {
+          Accept: "application/pdf",
+        },
+        onDownloadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1)
+          );
+          console.log(`Download progress: ${percentCompleted}%`);
+        },
+      });
+
+      // Vérification du type de contenu
+      const contentType = response.headers["content-type"];
+      if (
+        !contentType.includes("application/pdf") &&
+        !contentType.includes("application/octet-stream")
+      ) {
+        throw new Error("Le serveur n'a pas retourné un fichier PDF valide");
+      }
+
+      // Création du blob et téléchargement
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+
+      // Récupération du nom de fichier
+      let filename = `facture_${id}.pdf`;
+      const contentDisposition = response.headers["content-disposition"];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(
+          /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
         );
-      },
-    });
-
-    // Vérifier si la réponse est un PDF
-    if (
-      response.headers["content-type"] !== "application/pdf" &&
-      !response.headers["content-type"].includes("application/octet-stream")
-    ) {
-      throw new Error("Le serveur n'a pas retourné un fichier PDF valide");
-    }
-
-    // Créer un URL pour le fichier
-    const blob = new Blob([response.data], { type: "application/pdf" });
-    const url = window.URL.createObjectURL(blob);
-
-    // Option 1: Téléchargement automatique
-    const link = document.createElement("a");
-    link.href = url;
-    // Récupérer le nom du fichier depuis les headers si disponible
-    const contentDisposition = response.headers["content-disposition"];
-    let filename = `facture_${id}.pdf`;
-    if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-      if (filenameMatch) {
-        filename = filenameMatch[1];
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, "");
+        }
       }
-    }
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode.removeChild(link);
 
-    // Option 2: Prévisualisation dans une nouvelle fenêtre (en commentaire)
-    // window.open(url, '_blank');
+      // Création du lien et déclenchement du téléchargement
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
 
-    // Nettoyer l'URL créé
-    setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+      // Nettoyage
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
 
-    // Notification de succès
-    Swal.fire({
-      title: "PDF généré!",
-      text: "Le PDF de la facture a été téléchargé avec succès.",
-      icon: "success",
-      timer: 2000,
-      timerProgressBar: true,
-      showConfirmButton: false,
-      background: "#4caf50",
-      color: "white",
-    });
-  } catch (error) {
-    console.error("Erreur lors de la génération du PDF:", error);
+      // Notification de succès
+      Swal.fire({
+        title: "PDF généré!",
+        text: "Le PDF de la facture a été téléchargé avec succès.",
+        icon: "success",
+        timer: 2000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        background: "#4caf50",
+        color: "white",
+      });
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF:", error);
 
-    // Message d'erreur personnalisé selon le type d'erreur
-    let errorMessage = "Impossible de générer le PDF";
-    if (error.response) {
-      // Erreur de réponse du serveur
-      if (error.response.status === 404) {
-        errorMessage = "Facture introuvable";
-      } else if (error.response.status === 500) {
-        errorMessage = "Erreur serveur lors de la génération du PDF";
-      } else {
-        errorMessage = `Erreur ${error.response.status}: ${
-          error.response.data.message || "Erreur inconnue"
-        }`;
+      let errorMessage = "Impossible de générer le PDF";
+
+      if (error.code === "ECONNABORTED") {
+        errorMessage = "La requête a expiré. Veuillez réessayer.";
+      } else if (error.response) {
+        // Erreur de réponse du serveur
+        switch (error.response.status) {
+          case 404:
+            errorMessage = "Facture introuvable";
+            break;
+          case 500:
+            errorMessage = "Erreur serveur lors de la génération du PDF";
+            break;
+          default:
+            errorMessage = `Erreur ${error.response.status}: ${
+              error.response.data?.message || "Erreur inconnue"
+            }`;
+        }
+      } else if (error.request) {
+        // Pas de réponse du serveur
+        errorMessage = "Le serveur ne répond pas. Vérifiez votre connexion.";
+      } else if (error.message.includes("PDF valide")) {
+        errorMessage = "Le document généré n'est pas un PDF valide";
       }
-    } else if (error.request) {
-      // Pas de réponse du serveur
-      errorMessage = "Aucune réponse du serveur. Vérifiez votre connexion.";
-    }
 
-    Swal.fire({
-      title: "Erreur",
-      text: errorMessage,
-      icon: "error",
-      confirmButtonColor: "#3a4b6d",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      Swal.fire({
+        title: "Erreur",
+        text: errorMessage,
+        icon: "error",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#3a4b6d",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddFacture = () => {
     setFactureToEdit(null);
     setOpenForm(true);
@@ -418,9 +434,6 @@ const handleGeneratePDF = async (id) => {
                       "linear-gradient(135deg, #3a4b6d 0%, #1a2a4a 100%)",
                   }}
                 >
-                {  /*<TableCell sx={{ color: "white", fontWeight: 600 }}>
-                    Référence
-                  </TableCell>*/}
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Client
                   </TableCell>
@@ -445,7 +458,7 @@ const handleGeneratePDF = async (id) => {
                 {loading ? (
                   [...Array(rowsPerPage)].map((_, index) => (
                     <PremiumTableRow key={index}>
-                      {[...Array(6)].map((_, cellIndex) => (
+                      {[...Array(5)].map((_, cellIndex) => (
                         <TableCell key={cellIndex}>
                           <Skeleton
                             animation="wave"
@@ -458,7 +471,7 @@ const handleGeneratePDF = async (id) => {
                   ))
                 ) : filteredFactures.length === 0 ? (
                   <PremiumTableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <Box sx={{ textAlign: "center" }}>
                         <Receipt
                           sx={{
@@ -516,9 +529,6 @@ const handleGeneratePDF = async (id) => {
                             },
                           }}
                         >
-                        { /* <TableCell sx={{ color: "#3a4b6d", fontWeight: 500 }}>
-                            #{facture.id}
-                          </TableCell>*/}
                           <TableCell sx={{ color: "#3a4b6d" }}>
                             <Box
                               sx={{
@@ -541,14 +551,16 @@ const handleGeneratePDF = async (id) => {
                             #{facture.commande_ref}
                           </TableCell>
                           <TableCell sx={{ color: "#3a4b6d" }}>
-                            {new Date(facture.date_facture).toLocaleDateString()}
+                            {new Date(
+                              facture.date_facture
+                            ).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
-                            {/* Vérification si facture.total est un nombre */}
-                            {typeof facture.total === "number"
-                              ? facture.total.toFixed(2)
+                            {facture.total != null && !isNaN(facture.total)
+                              ? Number(facture.total).toFixed(2)
                               : "N/A"}
                           </TableCell>
+
                           <TableCell align="right">
                             <Box
                               sx={{
@@ -610,7 +622,7 @@ const handleGeneratePDF = async (id) => {
 
                 {!loading && emptyRows > 0 && (
                   <TableRow style={{ height: 53 * emptyRows }}>
-                    <TableCell colSpan={6} />
+                    <TableCell colSpan={5} />
                   </TableRow>
                 )}
               </TableBody>

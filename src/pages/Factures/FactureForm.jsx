@@ -58,7 +58,7 @@ const FactureForm = ({ open, onClose, refreshFactures, factureToEdit }) => {
     const fetchData = async () => {
       try {
         setLoadingData(true);
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem("token");
 
         const config = {
           headers: { Authorization: `Bearer ${token}` },
@@ -139,7 +139,7 @@ const validateForm = () => {
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("token");
       const config = {
         headers: { Authorization: `Bearer ${token}` },
       };
@@ -148,14 +148,15 @@ const validateForm = () => {
         commande_id: formData.commande_id,
         total: parseFloat(formData.total),
       };
-
-      if (factureToEdit) {
-        await axios.put(`${API_URL}/${factureToEdit.id}`, payload, config);
-        Swal.fire("Succès", "Facture mise à jour avec succès", "success");
-      } else {
-        await axios.post(API_URL, payload, config);
-        Swal.fire("Succès", "Facture créée avec succès", "success");
-      }
+  if (factureToEdit && factureToEdit.id) {
+    // Mise à jour d'une facture existante
+    await axios.put(`${API_URL}/${factureToEdit.id}`, payload, config); // API_URL doit être '/api/factures'
+    Swal.fire("Succès", "Facture mise à jour avec succès", "success");
+  } else {
+    // Création d'une nouvelle facture
+    await axios.post(API_URL, payload, config);
+    Swal.fire("Succès", "Facture créée avec succès", "success");
+  }
 
       setIsSuccess(true);
       setTimeout(() => {
@@ -260,7 +261,7 @@ const validateForm = () => {
                 </Box>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {/* Sélection de la commande */}
+                  
                   <Autocomplete
                     options={commandes}
                     getOptionLabel={(option) => `Commande #${option.id} - ${option.total} €`}

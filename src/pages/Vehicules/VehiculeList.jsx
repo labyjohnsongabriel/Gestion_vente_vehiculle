@@ -35,35 +35,7 @@ import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import VehiculeForm from "./VehiculeForm";
 import axios from "axios";
-
-const API_URL = "http://localhost:5000/api/vehicules";
-
-// Configuration axios avec intercepteur pour le token
-const axiosWithAuth = axios.create();
-
-axiosWithAuth.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-axiosWithAuth.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("authToken");
-      window.location.href = "/login";
-    }
-    return Promise.reject(error);
-  }
-);
+import { useNavigate } from "react-router-dom"; // Ajout de import useNavigate
 
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
@@ -79,6 +51,8 @@ const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   },
 }));
 
+const API_URL = "http://localhost:5000/api/vehicules";
+
 const VehiculeList = () => {
   const [vehicules, setVehicules] = useState([]);
   const [openForm, setOpenForm] = useState(false);
@@ -89,6 +63,43 @@ const VehiculeList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [authError, setAuthError] = useState(false);
+  const navigate = useNavigate(); // Ajout de useNavigate
+
+  // Création d'une instance axios avec token d'authentification
+  const axiosWithAuth = axios.create();
+
+  useEffect(() => {
+    const requestInterceptor = axiosWithAuth.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem("token");
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      }
+    );
+
+    const responseInterceptor = axiosWithAuth.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axiosWithAuth.interceptors.request.eject(requestInterceptor);
+      axiosWithAuth.interceptors.response.eject(responseInterceptor);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/login"); // Changé de "/" à "/login" pour être cohérent
+    Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
+  };
 
   const fetchVehicules = async () => {
     try {
@@ -111,7 +122,7 @@ const VehiculeList = () => {
             confirmButtonText: "Se connecter",
           }).then((result) => {
             if (result.isConfirmed) {
-              window.location.href = "/login";
+              navigate("/login"); // Utilisez navigate au lieu de window.location
             }
           });
         } else if (error.response.status === 403) {
@@ -252,7 +263,7 @@ const VehiculeList = () => {
           </Typography>
           <Button
             variant="contained"
-            onClick={() => (window.location.href = "/login")}
+            onClick={() => navigate("/login")} // Utiliser navigate au lieu de manipuler directement window.location
           >
             Se connecter
           </Button>

@@ -1,5 +1,16 @@
-            const User = require("../models/User"); // Assurez-vous que le chemin est correct
+const User = require("../models/User"); // Assurez-vous que le chemin est correct
 const bcrypt = require("bcryptjs");
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Utilisez la méthode SQL
+    const users = await User.getAll();
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des utilisateurs :", error);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
 
 exports.updateProfile = async (req, res) => {
   try {
@@ -58,5 +69,27 @@ exports.getProfile = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+exports.registerUser = async (req, res) => {
+  try {
+    const { firstName, lastName, email, password } = req.body;
+    const existingUser = await User.findByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({ message: "Email déjà utilisé" });
+    }
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: "user",
+    });
+    res.status(201).json({ message: "Utilisateur enregistré avec succès", user });
+  } catch (error) {
+    console.error("Erreur lors de l'enregistrement :", error);
+    res.status(500).json({ message: "Erreur serveur lors de l'enregistrement" });
   }
 };

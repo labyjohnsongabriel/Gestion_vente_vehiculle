@@ -24,6 +24,18 @@ const User = {
     }
   },
 
+  // Récupérer tous les utilisateurs (sans mot de passe)
+  getAll: async () => {
+    try {
+      const [rows] = await db.query(
+        "SELECT id, firstName, lastName, email, role FROM users"
+      );
+      return rows;
+    } catch (error) {
+      throw new Error("Erreur lors de la récupération des utilisateurs");
+    }
+  },
+
   // Créer un utilisateur
   create: async ({ firstName, lastName, email, password, role }) => {
     try {
