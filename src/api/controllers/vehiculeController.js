@@ -32,7 +32,6 @@ exports.getVehiculeById = async (req, res) => {
     });
   }
 };
-
 exports.createVehicule = async (req, res) => {
   const requiredFields = [
     "marque",
@@ -43,10 +42,22 @@ exports.createVehicule = async (req, res) => {
     "type",
     "statut",
     "date_ajout",
-
   ];
 
-  const missingFields = requiredFields.filter((field) => !req.body[field]);
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({
+      error: "Aucune donnée reçue",
+      message: "Le corps de la requête est vide ou mal formé.",
+    });
+  }
+
+  // Ajoutez ce log pour le debug :
+  console.log("Payload reçu:", req.body);
+
+  // Vérification des champs manquants ou vides
+  const missingFields = requiredFields.filter(
+    (field) => !req.body[field] && req.body[field] !== 0
+  );
 
   if (missingFields.length > 0) {
     return res.status(400).json({
@@ -57,17 +68,19 @@ exports.createVehicule = async (req, res) => {
   }
 
   try {
-    // Validation de l'immatriculation
+    // Validation du format de l'immatriculation
     const immatRegex = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
     if (!immatRegex.test(req.body.immatriculation)) {
       return res.status(400).json({
         error: "Format d'immatriculation invalide",
-        message: "Le format doit être AA-123-BB",
+        message: "Le format doit être du type : AA-123-BB",
       });
     }
 
+    // Insertion du véhicule
     const [result] = await db.query(`INSERT INTO vehicules SET ?`, [req.body]);
 
+    // Récupération du véhicule nouvellement inséré
     const [newVehicule] = await db.query(
       "SELECT * FROM vehicules WHERE id = ?",
       [result.insertId]

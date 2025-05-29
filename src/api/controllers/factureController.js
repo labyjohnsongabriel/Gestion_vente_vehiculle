@@ -95,18 +95,23 @@ exports.getFactureById = async (req, res) => {
  */
 exports.createFacture = async (req, res) => {
   try {
-    // Validation des données requises
-    const { client_name, commande_ref, total } = req.body;
-    if (!client_name || !commande_ref || total === undefined) {
+    const { commande_id, total } = req.body;
+
+    if (!commande_id || total === undefined) {
       return res.status(400).json({
         message:
-          "Données de facture incomplètes. Veuillez fournir au moins client_name, commande_ref et total",
+          "Données de facture incomplètes. Veuillez fournir au moins commande_id et total",
       });
     }
 
-    const newFactureId = await Facture.create(req.body);
+    const newFacture = await Facture.create({
+      commande_id,
+      total,
+      // `date_facture` sera rempli automatiquement par la BDD (si défini avec DEFAULT CURRENT_TIMESTAMP)
+    });
+
     res.status(201).json({
-      id: newFactureId,
+      id: newFacture.id,
       message: "Facture créée avec succès",
     });
   } catch (error) {
@@ -117,6 +122,7 @@ exports.createFacture = async (req, res) => {
     });
   }
 };
+
 
 /**
  * Supprime une facture par son ID
@@ -202,21 +208,8 @@ exports.generatePDF = async (req, res) => {
       return res.status(404).json({ message: "Facture non trouvée" });
     }
 
-    // Récupérer les détails des lignes de commande si disponibles
-    let lignesCommande = [];
-    if (factureData.commande_ref) {
-      try {
-        lignesCommande = await Facture.getLignesCommande(
-          factureData.commande_ref
-        );
-      } catch (err) {
-        console.warn(
-          `Impossible de récupérer les lignes de commande pour ${factureData.commande_ref}:`,
-          err.message
-        );
-        // Continuer sans les lignes de commande
-      }
-    }
+    // Désactivez la récupération des lignes de commande si la table n'existe pas
+    let lignesCommande = []; // Utilisez un tableau vide
 
     const doc = new PDFDocument({
       size: "A4",

@@ -42,13 +42,13 @@ exports.getPiece = async (req, res) => {
 // ✅ Créer une nouvelle pièce
 exports.createPiece = async (req, res) => {
   try {
-    const { name, reference, description, price, category_id, fournisseur_id } =
+    const { name, reference, description, price, stock_quantity, category_id, fournisseur_id } =
       req.body;
     const image = req.file ? `/uploads/pieces/${req.file.filename}` : null;
 
     const [result] = await db.query(
-      "INSERT INTO pieces (name, reference, description, price, image, category_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [name, reference, description, price, image, category_id, fournisseur_id]
+      "INSERT INTO pieces (name, reference, description, price , stock_quantity, image, category_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [name, reference, description, price, stock_quantity,  image, category_id, fournisseur_id]
     );
 
     res.status(201).json({
@@ -59,6 +59,7 @@ exports.createPiece = async (req, res) => {
         reference,
         description,
         price,
+        stock_quantity,
         image,
         category_id,
         fournisseur_id,
@@ -73,7 +74,7 @@ exports.createPiece = async (req, res) => {
 // ✅ Mettre à jour une pièce
 exports.updatePiece = async (req, res) => {
   try {
-    const { name, reference, description, price, category_id, fournisseur_id } =
+    const { name, reference, description, price,stock_quantity, category_id, fournisseur_id } =
       req.body;
     let image = null;
 
@@ -100,12 +101,13 @@ exports.updatePiece = async (req, res) => {
     }
 
     const [result] = await db.query(
-      "UPDATE pieces SET name = ?, reference = ?, description = ?, price = ?, image = COALESCE(?, image), category_id = ?, fournisseur_id = ? WHERE id = ?",
+      "UPDATE pieces SET name = ?, reference = ?, description = ?, price = ?, stock_quantity= ?, image = COALESCE(?, image), category_id = ?, fournisseur_id = ? WHERE id = ?",
       [
         name,
         reference,
         description,
         price,
+        stock_quantity,
         image,
         category_id,
         fournisseur_id,

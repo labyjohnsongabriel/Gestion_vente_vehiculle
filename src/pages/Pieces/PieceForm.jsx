@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import {
   Dialog,
   DialogTitle,
@@ -85,25 +86,36 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         axios.get(FOURNISSEURS_URL),
       ]);
 
-      // Vérification et normalisation des données
-      const normalizedCategories = Array.isArray(categoriesRes.data)
-        ? categoriesRes.data
+      // Vérification et extraction robustes
+      const categoriesData = categoriesRes.data;
+      const fournisseursData = fournisseursRes.data;
+
+      const normalizedCategories = Array.isArray(categoriesData)
+        ? categoriesData
+        : Array.isArray(categoriesData.categories)
+        ? categoriesData.categories
         : [];
 
-      const normalizedFournisseurs = Array.isArray(fournisseursRes.data)
-        ? fournisseursRes.data
+      const normalizedFournisseurs = Array.isArray(fournisseursData)
+        ? fournisseursData
+        : Array.isArray(fournisseursData.fournisseurs)
+        ? fournisseursData.fournisseurs
         : [];
 
+      // Enregistrement des données
       setCategories(normalizedCategories);
       setFournisseurs(normalizedFournisseurs);
 
+      // Vérification utile
       if (normalizedFournisseurs.length === 0) {
-        console.warn("Aucun fournisseur récupéré - vérifiez le endpoint API");
+        console.warn(
+          "⚠ Aucun fournisseur récupéré. Vérifiez le format ou le contenu de l'API :",
+          fournisseursRes.data
+        );
       }
     } catch (error) {
-      console.error("Erreur lors du chargement des données:", error);
+      console.error("❌ Erreur lors du chargement des données:", error);
       setDataError(`Erreur de chargement: ${error.message}`);
-      throw error;
     } finally {
       setLoadingData(false);
     }
@@ -564,15 +576,18 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                       loading={loadingData}
                     />
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Autocomplete
                       options={fournisseurs}
-                      getOptionLabel={(option) => option.name || "Inconnu"}
-                      value={selectedFournisseur || null}
-                      onChange={(e, newValue) =>
-                        handleChange("fournisseur_id", newValue?.id || "")
+                      getOptionLabel={(option) =>
+                        typeof option === "string"
+                          ? option
+                          : option?.nom || option?.name || "Inconnu"
                       }
+                      value={selectedFournisseur || null}
+                      onChange={(e, newValue) => {
+                        handleChange("fournisseur_id", newValue?.id || "");
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -584,7 +599,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                             startAdornment: (
                               <>
                                 <InputAdornment position="start">
-                                  <LocalShipping />
+                                  <LocalShippingIcon />
                                 </InputAdornment>
                                 {params.InputProps.startAdornment}
                               </>
@@ -594,7 +609,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                       )}
                       renderOption={(props, option) => (
                         <li {...props} key={option.id}>
-                          {option.name}
+                          {option.nom || option.name}
                           {option.contact && (
                             <Chip
                               label={option.contact}

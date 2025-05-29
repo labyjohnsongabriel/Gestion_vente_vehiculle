@@ -42,37 +42,35 @@ import moment from "moment";
 import "moment/locale/fr";
 import { styled } from "@mui/material/styles";
 
-// Définition des styles améliorés
+const getStatusColor = (status) => {
+  switch (status) {
+    case "online":
+      return "#4CAF50";
+    case "away":
+      return "#FFC107";
+    case "busy":
+      return "#F44336";
+    case "offline":
+      return "#9E9E9E";
+    default:
+      return "#9E9E9E";
+  }
+};
+
 const PremiumAppBar = styled(AppBar)(({ theme }) => ({
   background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
   color: theme.palette.common.white,
   boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
   backdropFilter: "blur(10px)",
   borderBottom: "1px solid rgba(0, 0, 0, 0.1)",
-  borderRadius: "1px", // Ajoutez cette ligne pour le border-radius
+  borderRadius: 0,
   transition: "all 0.3s ease",
   "&:hover": {
     boxShadow: "0 6px 25px rgba(0,0,0,0.25)",
   },
 }));
 
-
 const StatusBadge = ({ status }) => {
-  const getStatusColor = () => {
-    switch (status) {
-      case "online":
-        return "#4CAF50";
-      case "away":
-        return "#FFC107";
-      case "busy":
-        return "#F44336";
-      case "offline":
-        return "#9E9E9E";
-      default:
-        return "#9E9E9E";
-    }
-  };
-
   return (
     <Box
       sx={{
@@ -80,7 +78,7 @@ const StatusBadge = ({ status }) => {
         height: 14,
         borderRadius: "50%",
         border: "2px solid #ffffff",
-        backgroundColor: getStatusColor(),
+        backgroundColor: getStatusColor(status),
         boxShadow: "0 0 8px rgba(0,0,0,0.3)",
       }}
     />
@@ -92,7 +90,6 @@ const PremiumMenu = styled(Menu)(({ theme }) => ({
     width: 320,
     boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
     background: "linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%)",
-
     "&:before": {
       content: '""',
       display: "block",
@@ -132,31 +129,26 @@ const Topbar = () => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
-
-      // Vérifier la dernière activité pour définir le statut
-      const lastActivity = localStorage.getItem("lastActivity");
-      if (lastActivity) {
-        const inactiveTime = Date.now() - parseInt(lastActivity);
-        if (inactiveTime > 15 * 60 * 1000) {
-          // 15 minutes
-          setStatus("away");
-        }
-      }
+      checkUserStatus();
     }
   }, [user]);
 
-  // Mise à jour du statut selon l'activité
-  useEffect(() => {
-    const updateActivity = () => {
-      localStorage.setItem("lastActivity", Date.now().toString());
-      if (status === "away") {
-        setStatus("online");
-      }
-    };
+  const checkUserStatus = () => {
+    const lastActivity = localStorage.getItem("lastActivity");
+    if (lastActivity) {
+      const inactiveTime = Date.now() - parseInt(lastActivity);
+      setStatus(inactiveTime > 15 * 60 * 1000 ? "away" : "online");
+    }
+  };
 
+  const updateActivity = () => {
+    localStorage.setItem("lastActivity", Date.now().toString());
+    if (status === "away") setStatus("online");
+  };
+
+  useEffect(() => {
     window.addEventListener("mousemove", updateActivity);
     window.addEventListener("keydown", updateActivity);
-
     return () => {
       window.removeEventListener("mousemove", updateActivity);
       window.removeEventListener("keydown", updateActivity);
@@ -169,32 +161,69 @@ const Topbar = () => {
       setNotifications(res.data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
-      setNotifications([]);
     }
   };
 
   const handleNotificationClick = async (notification) => {
     try {
-      await axios.put(`/api/notifications/${notification._id}/read`);
+      await axios.put(`/api/notifications/${notification.id}/read`);
       setNotifications(
         notifications.map((n) =>
-          n._id === notification._id ? { ...n, read: true } : n
+          n.id === notification.id ? { ...n, read: true } : n
         )
       );
-
-      if (notification.type === "VEHICLE_PART") {
-        navigate(`/vehicle-parts/${notification.relatedId}`);
-      }
-
+      navigateNotification(notification);
       setNotifAnchorEl(null);
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
   };
 
+  const navigateNotification = (notification) => {
+    switch (notification.type) {
+      case "VEHICLE_PART":
+        navigate(`/vehicle-parts/${notification.relatedId}`);
+        break;
+      case "TASK_ASSIGNED":
+        navigate(`/tasks/${notification.relatedId}`);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await axios.put("/api/notifications/read-all");
+      setNotifications(notifications.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
+
   const handleStatusChange = (newStatus) => {
     setStatus(newStatus);
-    // Ici vous pourriez ajouter une API pour sauvegarder le statut
+    axios.put("/api/users/status", { status: newStatus });
+  };
+
+  const getRoleLabel = (role) => {
+    const roles = {
+      admin: "Administrateur",
+      manager: "Gestionnaire",
+      technician: "Technicien",
+      default: "Employé",
+    };
+    return roles[role] || roles.default;
+  };
+
+  const getRoleIcon = (role) => {
+    const icons = {
+      admin: <Engineering sx={{ color: "white", fontSize: 16 }} />,
+      manager: <DashboardIcon sx={{ color: "#FF9800", fontSize: 16 }} />,
+      technician: <LocalShipping sx={{ color: "#2196F3", fontSize: 16 }} />,
+      default: <PersonIcon sx={{ color: "#5C6BC0", fontSize: 16 }} />,
+    };
+    return icons[role] || icons.default;
   };
 
   const renderNotificationContent = (notification) => {
@@ -211,9 +240,7 @@ const Topbar = () => {
         sx={{
           px: 0,
           transition: "all 0.2s ease",
-          "&:hover": {
-            transform: "translateX(4px)",
-          },
+          "&:hover": { transform: "translateX(4px)" },
         }}
       >
         <ListItemAvatar>
@@ -248,31 +275,7 @@ const Topbar = () => {
     );
   };
 
-  const getRoleLabel = (role) => {
-    switch (role) {
-      case "admin":
-        return "Administrateur";
-      case "manager":
-        return "Gestionnaire";
-      case "technician":
-        return "Technicien";
-      default:
-        return "Employé";
-    }
-  };
-
-  const getRoleIcon = (role) => {
-    switch (role) {
-      case "admin":
-        return <Engineering sx={{ color: "white", fontSize: 16 }} />;
-      case "manager":
-        return <DashboardIcon sx={{ color: "#FF9800", fontSize: 16 }} />;
-      case "technician":
-        return <LocalShipping sx={{ color: "#2196F3", fontSize: 16 }} />;
-      default:
-        return <PersonIcon sx={{ color: "#5C6BC0", fontSize: 16 }} />;
-    }
-  };
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <PremiumAppBar
@@ -283,27 +286,18 @@ const Topbar = () => {
         zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
-      <Toolbar
-        sx={{
-          minHeight: "72px !important",
-          px: { xs: 2, sm: 4 },
-        }}
-      >
+      <Toolbar sx={{ minHeight: "72px !important", px: { xs: 2, sm: 4 } }}>
         <IconButton
           color="inherit"
           onClick={toggleSidebar}
           sx={{
             mr: 2,
             display: { sm: "none" },
-            "&:hover": {
-              background: "rgba(255,255,255,0.1)",
-            },
+            "&:hover": { background: "rgba(255,255,255,0.1)" },
           }}
         >
           <MenuIcon />
         </IconButton>
-
-        {/* Logo ou titre ici si nécessaire */}
 
         <Box sx={{ flexGrow: 1 }} />
 
@@ -313,12 +307,12 @@ const Topbar = () => {
               onClick={(e) => setNotifAnchorEl(e.currentTarget)}
               sx={{
                 color: "inherit",
-                "&:hover": {
-                  background: "rgba(255,255,255,0.1)",
-                },
+                "&:hover": { background: "rgba(255,255,255,0.1)" },
               }}
             >
-              
+              <NotificationBadge badgeContent={unreadCount} max={9}>
+                <NotificationsIcon />
+              </NotificationBadge>
             </IconButton>
           </Tooltip>
 
@@ -327,9 +321,7 @@ const Topbar = () => {
               onClick={(e) => setAnchorEl(e.currentTarget)}
               sx={{
                 p: 0,
-                "&:hover": {
-                  transform: "scale(1.05)",
-                },
+                "&:hover": { transform: "scale(1.05)" },
                 transition: "transform 0.2s ease",
               }}
             >
@@ -379,24 +371,15 @@ const Topbar = () => {
               >
                 Notifications
               </Typography>
-       {   /*    {notifications.filter((n) => !n.read).length > 0 && (
+              {unreadCount > 0 && (
                 <Button
                   size="small"
                   sx={{ color: "#5C6BC0", fontSize: 12 }}
-                  onClick={async () => {
-                    try {
-                      await axios.put("/api/notifications/read-all");
-                      setNotifications(
-                        notifications.map((n) => ({ ...n, read: true }))
-                      );
-                    } catch (error) {
-                      console.error("Error marking all as read:", error);
-                    }
-                  }}
+                  onClick={markAllAsRead}
                 >
                   Tout marquer comme lu
                 </Button>
-              )}*/}
+              )}
             </Stack>
             <Divider sx={{ mb: 2 }} />
             <List
@@ -404,22 +387,18 @@ const Topbar = () => {
                 width: "100%",
                 maxHeight: 400,
                 overflow: "auto",
-                "&::-webkit-scrollbar": {
-                  width: "4px",
-                },
-                "&::-webkit-scrollbar-track": {
-                  background: "#f1f1f1",
-                },
+                "&::-webkit-scrollbar": { width: "4px" },
+                "&::-webkit-scrollbar-track": { background: "#f1f1f1" },
                 "&::-webkit-scrollbar-thumb": {
                   background: "#c5cae9",
                   borderRadius: "4px",
                 },
               }}
             >
-         {    /* {notifications.length > 0 ? (
+              {notifications.length > 0 ? (
                 notifications.map((notification) => (
                   <MenuItem
-                    key={notification._id}
+                    key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
                     sx={{
                       mb: 1,
@@ -427,9 +406,7 @@ const Topbar = () => {
                       background: notification.read
                         ? "inherit"
                         : "rgba(92, 107, 192, 0.08)",
-                      "&:hover": {
-                        background: "rgba(92, 107, 192, 0.12)",
-                      },
+                      "&:hover": { background: "rgba(92, 107, 192, 0.12)" },
                     }}
                   >
                     {renderNotificationContent(notification)}
@@ -442,7 +419,7 @@ const Topbar = () => {
                 >
                   Aucune nouvelle notification
                 </Typography>
-              )}*/}
+              )}
             </List>
           </Box>
         </PremiumMenu>
@@ -503,12 +480,9 @@ const Topbar = () => {
                     : user?.role === "technician"
                     ? "linear-gradient(135deg, #64B5F6 0%, #2196F3 100%)"
                     : "rgba(92, 107, 192, 0.1)",
-                color:
-                  user?.role === "admin" ||
-                  user?.role === "manager" ||
-                  user?.role === "technician"
-                    ? "white"
-                    : "#5C6BC0",
+                color: ["admin", "manager", "technician"].includes(user?.role)
+                  ? "white"
+                  : "#5C6BC0",
                 fontWeight: 600,
                 boxShadow: "0 2px 6px rgba(92, 107, 192, 0.2)",
               }}
@@ -517,7 +491,6 @@ const Topbar = () => {
 
           <Divider sx={{ my: 1 }} />
 
-          {/* Section statut */}
           <Box sx={{ px: 3, py: 1 }}>
             <Typography
               variant="caption"
@@ -527,161 +500,97 @@ const Topbar = () => {
               Définir votre statut
             </Typography>
             <Stack direction="row" spacing={1}>
-              <Tooltip title="En ligne">
-                <Avatar
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    bgcolor: status === "online" ? "#E8F5E9" : "#F5F5F5",
-                    cursor: "pointer",
-                    border: status === "online" ? "2px solid #4CAF50" : "none",
-                  }}
-                  onClick={() => handleStatusChange("online")}
+              {["online", "away", "busy", "offline"].map((stat) => (
+                <Tooltip
+                  key={stat}
+                  title={stat.charAt(0).toUpperCase() + stat.slice(1)}
                 >
-                  <Circle sx={{ color: "#4CAF50", fontSize: 14 }} />
-                </Avatar>
-              </Tooltip>
-              <Tooltip title="Absent">
-                <Avatar
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    bgcolor: status === "away" ? "#FFF8E1" : "#F5F5F5",
-                    cursor: "pointer",
-                    border: status === "away" ? "2px solid #FFC107" : "none",
-                  }}
-                  onClick={() => handleStatusChange("away")}
-                >
-                  <Circle sx={{ color: "#FFC107", fontSize: 14 }} />
-                </Avatar>
-              </Tooltip>
-              <Tooltip title="Occupé">
-                <Avatar
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    bgcolor: status === "busy" ? "#FFEBEE" : "#F5F5F5",
-                    cursor: "pointer",
-                    border: status === "busy" ? "2px solid #F44336" : "none",
-                  }}
-                  onClick={() => handleStatusChange("busy")}
-                >
-                  <Circle sx={{ color: "#F44336", fontSize: 14 }} />
-                </Avatar>
-              </Tooltip>
-              <Tooltip title="Hors ligne">
-                <Avatar
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    bgcolor: status === "offline" ? "#EEEEEE" : "#F5F5F5",
-                    cursor: "pointer",
-                    border: status === "offline" ? "2px solid #9E9E9E" : "none",
-                  }}
-                  onClick={() => handleStatusChange("offline")}
-                >
-                  <Circle sx={{ color: "#9E9E9E", fontSize: 14 }} />
-                </Avatar>
-              </Tooltip>
+                  <Avatar
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      bgcolor:
+                        status === stat
+                          ? stat === "online"
+                            ? "#E8F5E9"
+                            : stat === "away"
+                            ? "#FFF8E1"
+                            : stat === "busy"
+                            ? "#FFEBEE"
+                            : "#EEEEEE"
+                          : "#F5F5F5",
+                      cursor: "pointer",
+                      border:
+                        status === stat
+                          ? `2px solid ${getStatusColor(stat)}`
+                          : "none",
+                    }}
+                    onClick={() => handleStatusChange(stat)}
+                  >
+                    <Circle
+                      sx={{ color: getStatusColor(stat), fontSize: 14 }}
+                    />
+                  </Avatar>
+                </Tooltip>
+              ))}
             </Stack>
           </Box>
 
           <Divider sx={{ my: 1 }} />
 
-          <MenuItem
-            onClick={() => {
-              navigate("/dashboard");
-              setAnchorEl(null);
-            }}
-            sx={{
-              py: 1.5,
-              px: 3,
-              "&:hover": {
-                background: "rgba(92, 107, 192, 0.08)",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <ProfileIcon sx={{ color: "#5C6BC0" }} />
-            </ListItemIcon>
-            <Typography variant="body2" fontWeight={500}>
-              Mon Profil
-            </Typography>
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              navigate("/settings");
-              setAnchorEl(null);
-            }}
-            sx={{
-              py: 1.5,
-              px: 3,
-              "&:hover": {
-                background: "rgba(92, 107, 192, 0.08)",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <SettingsIcon sx={{ color: "#5C6BC0" }} />
-            </ListItemIcon>
-            <Typography variant="body2" fontWeight={500}>
-              Paramètres
-            </Typography>
-          </MenuItem>
-
-          {(user?.role === "admin" || user?.role === "manager") && (
+          {[
+            {
+              icon: <ProfileIcon sx={{ color: "#5C6BC0" }} />,
+              text: "Mon Profil",
+              path: "/profile",
+            },
+            {
+              icon: <SettingsIcon sx={{ color: "#5C6BC0" }} />,
+              text: "Paramètres",
+              path: "/settings",
+            },
+            ...(user?.role === "admin" || user?.role === "manager"
+              ? [
+                  {
+                    icon: <DashboardIcon sx={{ color: "#5C6BC0" }} />,
+                    text: "Tableau de bord",
+                    path: "/admin",
+                  },
+                ]
+              : []),
+            {
+              icon: <LogoutIcon sx={{ color: "#EF5350" }} />,
+              text: "Déconnexion",
+              action: logout,
+            },
+          ].map((item, index) => (
             <MenuItem
+              key={index}
               onClick={() => {
-                navigate("/admin");
+                if (item.action) {
+                  item.action();
+                } else {
+                  navigate(item.path);
+                }
                 setAnchorEl(null);
               }}
               sx={{
                 py: 1.5,
                 px: 3,
                 "&:hover": {
-                  background: "rgba(92, 107, 192, 0.08)",
+                  background:
+                    item.text === "Déconnexion"
+                      ? "rgba(239, 83, 80, 0.08)"
+                      : "rgba(92, 107, 192, 0.08)",
                 },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 40 }}>
-                <DashboardIcon sx={{ color: "#5C6BC0" }} />
-              </ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
               <Typography variant="body2" fontWeight={500}>
-                Tableau de bord
+                {item.text}
               </Typography>
             </MenuItem>
-          )}
-
-          <Divider sx={{ my: 1 }} />
-
-          <MenuItem
-            onClick={() => {
-              logout();
-              setAnchorEl(null);
-            }}
-            sx={{
-              py: 1.5,
-              px: 3,
-              "&:hover": {
-                background: "rgba(239, 83, 80, 0.08)",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <LogoutIcon sx={{ color: "#EF5350" }} />
-            </ListItemIcon>
-            <Typography
-              variant="body2"
-              fontWeight={500}
-              onClick={() => {
-                navigate("/login");
-                setAnchorEl(null);
-              }}
-            >
-              Déconnexion
-            </Typography>
-          </MenuItem>
+          ))}
         </PremiumMenu>
       </Toolbar>
     </PremiumAppBar>

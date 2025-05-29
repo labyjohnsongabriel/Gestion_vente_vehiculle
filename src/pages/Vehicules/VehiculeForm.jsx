@@ -434,6 +434,25 @@ const VehiculeForm = ({
                 }}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <StyledTextField
+                label="date_ajout"
+                name="date_ajout"
+                type="date"
+                value={formData.date_ajout}
+                onChange={handleChange}
+                fullWidth
+                disabled={loading}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarToday color="action" />
+
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
 
             <Grid item xs={12} sm={6}>
               <StyledTextField

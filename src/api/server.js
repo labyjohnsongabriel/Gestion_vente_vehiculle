@@ -3,17 +3,30 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const db = require("./config/db");
 const path = require("path");
+const fs = require("fs");
 
 dotenv.config();
 
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // <-- Set your frontend URL here
+    credentials: true, // nécessaire si tu utilises des cookies/sessions
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+
+// Ensure avatars upload directory exists
+const avatarsDir = path.join(__dirname, "public/uploads/avatars");
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+}
 
 // Tester la connexion à la base
 db.getConnection()
@@ -37,9 +50,13 @@ app.use("/api/factures", require("./routes/factureRoutes"));
 app.use("/api/details", require("./routes/detailsCommandeRoutes"));
 app.use("/api/vehicules", require("./routes/vehiculeRoutes"));
 app.use("/api/stocks", require("./routes/stockRoutes"));
+app.use("/api/stock", require("./routes/stockRoutes"));
 app.use("/api/pieceVehicule", require("./routes/pieceVehiculeRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
+app.use("/api/profile", require("./routes/profileRoutes"));
+app.use("/api/user/settings", require("./routes/userSettingsRoutes"));
+app.use("/api/notifications", require("./routes/notificationsRoutes"));
 
 // Route d'accueil
 app.get("/", (req, res) => {

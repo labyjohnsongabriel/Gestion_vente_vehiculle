@@ -10,6 +10,8 @@ import TopBar from "./components/layout/Topbar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { UserProvider } from "./components/context/UserContext";
 import { SidebarProvider } from "./components/context/SidebarContext";
+import { SettingsProvider } from "./components/context/SettingsContext"; // adapte le chemin selon ton projet
+
 import premiumTheme from "./theme/premiumTheme";
 import axios from "axios";
 
@@ -295,9 +297,16 @@ export default function App() {
                       <Route
                         path="/settings"
                         element={
-                          <RouteWithErrorBoundary element={<Settings />} />
+                          <RouteWithErrorBoundary
+                            element={
+                              <SettingsProvider>
+                                <Settings />
+                              </SettingsProvider>
+                            }
+                          />
                         }
                       />
+
                       <Route
                         path="/profile"
                         element={

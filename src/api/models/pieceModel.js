@@ -13,13 +13,14 @@ const Piece = {
 
   create: async (data) => {
     const sql = `
-      INSERT INTO pieces (name, description, price, image, category_id, fournisseur_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO pieces (name, description, price, image, category_id, fournisseur_id, stock_quantity)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await db.query(sql, [
       data.name,
       data.description,
       data.price,
+      data.stock_qauntity,
       data.image,
       data.category_id,
       data.fournisseur_id,
@@ -29,13 +30,14 @@ const Piece = {
 
   update: async (id, data) => {
     const sql = `
-      UPDATE pieces SET name = ?, description = ?, price = ?, image = ?, category_id = ?, fournisseur_id = ?
+      UPDATE pieces SET name = ?, description = ?, price = ?, image = ?, category_id = ?, fournisseur_id = ?, stock_quantity= ?,
       WHERE id = ?
     `;
     const [result] = await db.query(sql, [
       data.name,
       data.description,
       data.price,
+      data.stock_quantity,
       data.image,
       data.category_id,
       data.fournisseur_id,

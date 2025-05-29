@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import InfoIcon from "@mui/icons-material/Info";
-
 import {
   Table,
   TableBody,
@@ -24,12 +23,17 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
-  
   Grid,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  Alert,
+  AlertTitle,
 } from "@mui/material";
 import {
   Edit,
@@ -47,6 +51,12 @@ import {
   LocalShipping,
   Print,
   Notes,
+  CheckCircle,
+  Schedule,
+  Warning,
+  Inventory,
+  TrendingUp,
+  Analytics,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
@@ -94,6 +104,8 @@ const PremiumButton = styled(Button)(({ theme }) => ({
 }));
 
 const API_URL = "http://localhost:5000/api/commandes";
+const STOCK_API_URL = "http://localhost:5000/api/stock";
+const USER_API_URL = "http://localhost:5000/api/auth/me";
 
 const CommandeList = () => {
   const [commandes, setCommandes] = useState([]);
@@ -108,15 +120,73 @@ const CommandeList = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [details, setDetails] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [stockData, setStockData] = useState({});
+  const [statusFilter, setStatusFilter] = useState("tous");
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [commandeStats, setCommandeStats] = useState({});
+  const [userRole, setUserRole] = useState("user");
+  const [userId, setUserId] = useState(null);
   const navigate = useNavigate();
 
+  // Statuts disponibles avec leurs propriétés
+  const statusOptions = [
+    {
+      value: "en_preparation",
+      label: "En préparation",
+      color: "warning",
+      icon: Schedule,
+    },
+    { value: "valide", label: "Validé", color: "info", icon: CheckCircle },
+    { value: "livre", label: "Livré", color: "success", icon: LocalShipping },
+    { value: "annule", label: "Annulé", color: "error", icon: Warning },
+  ];
+
+  // Récupérer les informations de l'utilisateur connecté
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.get(USER_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserRole(response.data.role);
+      setUserId(response.data.id);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération des infos utilisateur:",
+        error
+      );
+      navigate("/login");
+    }
+  };
+
+  // Récupérer les commandes selon le rôle
   const fetchCommandes = async () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
 
-      const response = await axios.get(API_URL);
+      const token = localStorage.getItem("token");
+      let url = API_URL;
+
+      // Si utilisateur standard, ne récupérer que ses commandes
+      if (userRole === "user") {
+        url = `${API_URL}/user/${userId}`;
+      }
+
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setCommandes(response.data);
+
+      // Calculer les statistiques seulement pour les admins
+      if (userRole === "admin") {
+        calculateStats(response.data);
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des commandes:", error);
       Swal.fire("Erreur", "Impossible de charger les commandes", "error");
@@ -126,11 +196,41 @@ const CommandeList = () => {
     }
   };
 
+  const fetchStock = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(STOCK_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const stockMap = {};
+      response.data.forEach((item) => {
+        stockMap[item.piece_id] = {
+          quantity: item.quantity,
+          seuil_alerte: item.seuil_alerte,
+          status: item.quantity <= item.seuil_alerte ? "critique" : "normal",
+        };
+      });
+      setStockData(stockMap);
+    } catch (error) {
+      console.error("Erreur lors du chargement du stock:", error);
+    }
+  };
+
   const fetchCommandeDetails = async (commandeId) => {
     try {
       setDetailsLoading(true);
-      const response = await axios.get(`${API_URL}/${commandeId}/details`);
-      setDetails(response.data);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_URL}/${commandeId}/details`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Enrichir les détails avec les données de stock
+      const enrichedDetails = response.data.map((detail) => ({
+        ...detail,
+        stock: stockData[detail.piece_id] || { quantity: 0, status: "inconnu" },
+      }));
+
+      setDetails(enrichedDetails);
     } catch (error) {
       console.error("Erreur lors du chargement des détails:", error);
       Swal.fire("Erreur", "Impossible de charger les détails", "error");
@@ -139,22 +239,159 @@ const CommandeList = () => {
     }
   };
 
+  const calculateStats = (commandesData) => {
+    const stats = {
+      total: commandesData.length,
+      en_preparation: commandesData.filter((c) => c.status === "en_preparation")
+        .length,
+      valide: commandesData.filter((c) => c.status === "valide").length,
+      livre: commandesData.filter((c) => c.status === "livre").length,
+      annule: commandesData.filter((c) => c.status === "annule").length,
+      montant_total: commandesData.reduce(
+        (sum, c) => sum + (c.montant || 0),
+        0
+      ),
+      montant_livre: commandesData
+        .filter((c) => c.status === "livre")
+        .reduce((sum, c) => sum + (c.montant || 0), 0),
+    };
+    setCommandeStats(stats);
+  };
+
+  const updateCommandeStatus = async (commandeId, newStatus) => {
+    if (userRole !== "admin") {
+      Swal.fire(
+        "Erreur",
+        "Vous n'avez pas la permission de modifier le statut",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(
+        `${API_URL}/${commandeId}/status`,
+        { status: newStatus },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      Swal.fire({
+        title: "Statut mis à jour!",
+        text: `Le statut de la commande a été changé vers ${
+          statusOptions.find((s) => s.value === newStatus)?.label
+        }.`,
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+
+      fetchCommandes();
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut:", error);
+      Swal.fire("Erreur", "Impossible de mettre à jour le statut", "error");
+    }
+  };
+
+  const getStatusChip = (status) => {
+    const statusConfig = statusOptions.find((s) => s.value === status) || {
+      value: "en_preparation",
+      label: "En préparation",
+      color: "warning",
+      icon: Schedule,
+    };
+
+    const IconComponent = statusConfig.icon;
+
+    return (
+      <Chip
+        icon={<IconComponent fontSize="small" />}
+        label={statusConfig.label}
+        color={statusConfig.color}
+        size="small"
+        sx={{
+          borderRadius: 1,
+          fontWeight: 600,
+          textTransform: "capitalize",
+          minWidth: 120,
+          justifyContent: "center",
+        }}
+      />
+    );
+  };
+
+  const getStockAlert = (stock) => {
+    if (!stock || stock.status === "inconnu") return null;
+
+    if (stock.status === "critique") {
+      return (
+        <Alert severity="error" size="small" sx={{ mt: 1 }}>
+          Stock critique: {stock.quantity} unités
+        </Alert>
+      );
+    }
+
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", mt: 1 }}>
+        <Inventory fontSize="small" color="success" />
+        <Typography variant="caption" sx={{ ml: 1 }}>
+          Stock: {stock.quantity} unités
+        </Typography>
+      </Box>
+    );
+  };
+
   useEffect(() => {
-    fetchCommandes();
+    fetchUserInfo();
   }, []);
 
+  useEffect(() => {
+    if (userId) {
+      fetchCommandes();
+      fetchStock();
+    }
+  }, [userId, userRole]);
+
   const handleEdit = (commande) => {
+    if (userRole !== "admin" && commande.user_id !== userId) {
+      Swal.fire(
+        "Erreur",
+        "Vous ne pouvez modifier que vos propres commandes",
+        "error"
+      );
+      return;
+    }
     setCommandeToEdit(commande);
     setOpenForm(true);
   };
 
   const handleViewDetails = async (commande) => {
+    if (userRole === "user" && commande.user_id !== userId) {
+      Swal.fire(
+        "Erreur",
+        "Vous ne pouvez voir que vos propres commandes",
+        "error"
+      );
+      return;
+    }
     setSelectedCommande(commande);
     await fetchCommandeDetails(commande.id);
     setDetailsOpen(true);
   };
 
   const handleDelete = async (id) => {
+    if (userRole !== "admin") {
+      Swal.fire(
+        "Erreur",
+        "Vous n'avez pas la permission de supprimer des commandes",
+        "error"
+      );
+      return;
+    }
+
     Swal.fire({
       title: "Confirmer la suppression",
       html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer cette commande? <br/><small>Cette action est irréversible.</small></div>`,
@@ -167,7 +404,10 @@ const CommandeList = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_URL}/${id}`);
+          const token = localStorage.getItem("token");
+          await axios.delete(`${API_URL}/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
           fetchCommandes();
           Swal.fire({
             title: "Supprimé!",
@@ -192,6 +432,7 @@ const CommandeList = () => {
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchCommandes();
+    fetchStock();
   };
 
   const handleSearch = (e) => {
@@ -199,13 +440,23 @@ const CommandeList = () => {
     setPage(0);
   };
 
-  const filteredCommandes = commandes.filter((cmd) =>
-    Object.values(cmd).some(
+  const handleStatusFilter = (e) => {
+    setStatusFilter(e.target.value);
+    setPage(0);
+  };
+
+  const filteredCommandes = commandes.filter((cmd) => {
+    const matchesSearch = Object.values(cmd).some(
       (value) =>
         value &&
         value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+    );
+
+    const matchesStatus =
+      statusFilter === "tous" || cmd.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   const emptyRows =
     rowsPerPage -
@@ -214,6 +465,57 @@ const CommandeList = () => {
   return (
     <Fade in timeout={600}>
       <Box sx={{ p: { xs: 1, sm: 3 } }}>
+        {/* Statistiques en haut (seulement pour admin) */}
+        {userRole === "admin" && (
+          <Box sx={{ mb: 3 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper sx={{ p: 2, textAlign: "center", borderRadius: 2 }}>
+                  <Typography variant="h6" color="primary">
+                    {commandeStats.total || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Commandes
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper sx={{ p: 2, textAlign: "center", borderRadius: 2 }}>
+                  <Typography variant="h6" color="warning.main">
+                    {commandeStats.en_preparation || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    En Préparation
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper sx={{ p: 2, textAlign: "center", borderRadius: 2 }}>
+                  <Typography variant="h6" color="success.main">
+                    {commandeStats.livre || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Livrées
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Paper sx={{ p: 2, textAlign: "center", borderRadius: 2 }}>
+                  <Typography variant="h6" color="info.main">
+                    {commandeStats.montant_total?.toLocaleString("fr-FR", {
+                      style: "currency",
+                      currency: "EUR",
+                    }) || "0 €"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Chiffre d'Affaires
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+
         <Paper
           sx={{
             borderRadius: 4,
@@ -256,6 +558,7 @@ const CommandeList = () => {
                 gap: 2,
                 width: { xs: "100%", sm: "auto" },
                 alignItems: "center",
+                flexWrap: "wrap",
               }}
             >
               <TextField
@@ -281,7 +584,7 @@ const CommandeList = () => {
                 }}
                 sx={{
                   flexGrow: { xs: 1, sm: 0 },
-                  minWidth: 250,
+                  minWidth: 200,
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 50,
                     "& fieldset": {
@@ -294,11 +597,31 @@ const CommandeList = () => {
                 }}
               />
 
-              <Tooltip title="Filtrer" arrow>
-                <IconButton sx={{ color: "white" }}>
-                  <FilterList />
-                </IconButton>
-              </Tooltip>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <Select
+                  value={statusFilter}
+                  onChange={handleStatusFilter}
+                  sx={{
+                    borderRadius: 50,
+                    background: "rgba(255,255,255,0.15)",
+                    color: "white",
+                    "& .MuiSelect-icon": { color: "white" },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(255,255,255,0.3)",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(255,255,255,0.5)",
+                    },
+                  }}
+                >
+                  <MenuItem value="tous">Tous les statuts</MenuItem>
+                  {statusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
               <Tooltip title="Actualiser" arrow>
                 <IconButton
@@ -314,15 +637,28 @@ const CommandeList = () => {
                 </IconButton>
               </Tooltip>
 
-              <PremiumButton
-                startIcon={<Add />}
-                onClick={handleAddCommande}
-                sx={{
-                  display: { xs: "none", sm: "flex" },
-                }}
-              >
-                Nouvelle Commande
-              </PremiumButton>
+              {userRole === "admin" && (
+                <Tooltip title="Statistiques" arrow>
+                  <IconButton
+                    onClick={() => setStatsOpen(true)}
+                    sx={{ color: "white" }}
+                  >
+                    <Analytics />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              {userRole === "admin" && (
+                <PremiumButton
+                  startIcon={<Add />}
+                  onClick={handleAddCommande}
+                  sx={{
+                    display: { xs: "none", sm: "flex" },
+                  }}
+                >
+                  Nouvelle Commande
+                </PremiumButton>
+              )}
             </Box>
           </Box>
 
@@ -339,9 +675,11 @@ const CommandeList = () => {
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Client
                   </TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
-                    Responsable
-                  </TableCell>
+                  {userRole === "admin" && (
+                    <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                      Responsable
+                    </TableCell>
+                  )}
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Montant
                   </TableCell>
@@ -363,16 +701,22 @@ const CommandeList = () => {
                 {loading ? (
                   [...Array(rowsPerPage)].map((_, index) => (
                     <PremiumTableRow key={index}>
-                      {[...Array(5)].map((_, cellIndex) => (
-                        <TableCell key={cellIndex}>
-                          <Skeleton animation="wave" height={40} />
-                        </TableCell>
-                      ))}
+                      {[...Array(userRole === "admin" ? 6 : 5)].map(
+                        (_, cellIndex) => (
+                          <TableCell key={cellIndex}>
+                            <Skeleton animation="wave" height={40} />
+                          </TableCell>
+                        )
+                      )}
                     </PremiumTableRow>
                   ))
                 ) : filteredCommandes.length === 0 ? (
                   <PremiumTableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell
+                      colSpan={userRole === "admin" ? 6 : 5}
+                      align="center"
+                      sx={{ py: 6 }}
+                    >
                       <Box sx={{ textAlign: "center" }}>
                         <ShoppingCart
                           sx={{
@@ -389,19 +733,23 @@ const CommandeList = () => {
                         >
                           Aucune commande trouvée
                         </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ mb: 2 }}
-                        >
-                          Essayez d'ajouter une nouvelle commande
-                        </Typography>
-                        <PremiumButton
-                          onClick={handleAddCommande}
-                          startIcon={<Add />}
-                        >
-                          Créer une commande
-                        </PremiumButton>
+                        {userRole === "admin" && (
+                          <>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ mb: 2 }}
+                            >
+                              Essayez d'ajouter une nouvelle commande
+                            </Typography>
+                            <PremiumButton
+                              onClick={handleAddCommande}
+                              startIcon={<Add />}
+                            >
+                              Créer une commande
+                            </PremiumButton>
+                          </>
+                        )}
                       </Box>
                     </TableCell>
                   </PremiumTableRow>
@@ -448,50 +796,70 @@ const CommandeList = () => {
                               </Typography>
                             </Box>
                           </TableCell>
-                          <TableCell sx={{ color: "#3a4b6d" }}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 2,
-                              }}
-                            >
-                              <Avatar
-                                sx={{ bgcolor: "#4caf50", color: "white" }}
+                          {userRole === "admin" && (
+                            <TableCell sx={{ color: "#3a4b6d" }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
                               >
-                                {commande.user_name?.charAt(0)}
-                              </Avatar>
-                              <Typography>{commande.user_name}</Typography>
-                            </Box>
-                          </TableCell>
+                                <Avatar
+                                  sx={{ bgcolor: "#4caf50", color: "white" }}
+                                >
+                                  {commande.user_name?.charAt(0)}
+                                </Avatar>
+                                <Typography>{commande.user_name}</Typography>
+                              </Box>
+                            </TableCell>
+                          )}
                           <TableCell sx={{ color: "#3a4b6d" }}>
-                            {new Date(
-                              commande.dateCommande
-                            ).toLocaleDateString()}
+                            {commande.montant.toLocaleString("fr-FR", {
+                              style: "currency",
+                              currency: "EUR",
+                            })}
                           </TableCell>
 
                           <TableCell sx={{ color: "#3a4b6d" }}>
                             {new Date(commande.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell sx={{ color: "#3a4b6d" }}>
-                            <Chip
-                              label={commande.status || "En cours"}
-                              color={
-                                commande.status === "Livrée"
-                                  ? "success"
-                                  : commande.status === "Annulée"
-                                  ? "error"
-                                  : "warning"
-                              }
-                              size="small"
+                            <Box
                               sx={{
-                                borderRadius: 1,
-                                fontWeight: 600,
-                                textTransform: "capitalize",
-                                minWidth: 80,
-                                justifyContent: "center",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 1,
                               }}
-                            />
+                            >
+                              {getStatusChip(commande.status)}
+                              {userRole === "admin" && (
+                                <FormControl
+                                  size="small"
+                                  sx={{ minWidth: 120 }}
+                                >
+                                  <Select
+                                    value={commande.status || "en_preparation"}
+                                    onChange={(e) =>
+                                      updateCommandeStatus(
+                                        commande.id,
+                                        e.target.value
+                                      )
+                                    }
+                                    sx={{ fontSize: "0.75rem" }}
+                                  >
+                                    {statusOptions.map((option) => (
+                                      <MenuItem
+                                        key={option.value}
+                                        value={option.value}
+                                      >
+                                        {option.label}
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell align="right">
                             <Box
@@ -516,35 +884,40 @@ const CommandeList = () => {
                                   <Visibility />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Modifier" arrow>
-                                <IconButton
-                                  onClick={() => handleEdit(commande)}
-                                  sx={{
-                                    color: "#3a4b6d",
-                                    "&:hover": {
-                                      color: "#667eea",
-                                      transform: "scale(1.2)",
-                                    },
-                                    transition: "all 0.3s ease",
-                                  }}
-                                >
-                                  <Edit />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Supprimer" arrow>
-                                <IconButton
-                                  onClick={() => handleDelete(commande.id)}
-                                  sx={{
-                                    color: "#ff4444",
-                                    "&:hover": {
-                                      transform: "scale(1.2)",
-                                    },
-                                    transition: "all 0.3s ease",
-                                  }}
-                                >
-                                  <Delete />
-                                </IconButton>
-                              </Tooltip>
+                              {(userRole === "admin" ||
+                                commande.user_id === userId) && (
+                                <Tooltip title="Modifier" arrow>
+                                  <IconButton
+                                    onClick={() => handleEdit(commande)}
+                                    sx={{
+                                      color: "#3a4b6d",
+                                      "&:hover": {
+                                        color: "#667eea",
+                                        transform: "scale(1.2)",
+                                      },
+                                      transition: "all 0.3s ease",
+                                    }}
+                                  >
+                                    <Edit />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {userRole === "admin" && (
+                                <Tooltip title="Supprimer" arrow>
+                                  <IconButton
+                                    onClick={() => handleDelete(commande.id)}
+                                    sx={{
+                                      color: "#ff4444",
+                                      "&:hover": {
+                                        transform: "scale(1.2)",
+                                      },
+                                      transition: "all 0.3s ease",
+                                    }}
+                                  >
+                                    <Delete />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -554,7 +927,7 @@ const CommandeList = () => {
 
                 {!loading && emptyRows > 0 && (
                   <TableRow style={{ height: 53 * emptyRows }}>
-                    <TableCell colSpan={5} />
+                    <TableCell colSpan={userRole === "admin" ? 6 : 5} />
                   </TableRow>
                 )}
               </TableBody>
@@ -588,37 +961,40 @@ const CommandeList = () => {
           />
         </Paper>
 
-        {/* Bouton mobile premium */}
-        <Box
-          sx={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            display: { xs: "block", sm: "none" },
-            zIndex: 1000,
-          }}
-        >
-          <Tooltip title="Ajouter une commande" arrow>
-            <Button
-              variant="contained"
-              onClick={handleAddCommande}
-              sx={{
-                borderRadius: "50%",
-                width: 60,
-                height: 60,
-                minWidth: 0,
-                boxShadow: "0 10px 20px rgba(102, 126, 234, 0.3)",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                "&:hover": {
-                  transform: "scale(1.1)",
-                },
-                transition: "all 0.3s ease",
-              }}
-            >
-              <Add sx={{ fontSize: 28 }} />
-            </Button>
-          </Tooltip>
-        </Box>
+        {/* Bouton mobile premium (seulement pour admin) */}
+        {userRole === "admin" && (
+          <Box
+            sx={{
+              position: "fixed",
+              bottom: 24,
+              right: 24,
+              display: { xs: "block", sm: "none" },
+              zIndex: 1000,
+            }}
+          >
+            <Tooltip title="Ajouter une commande" arrow>
+              <Button
+                variant="contained"
+                onClick={handleAddCommande}
+                sx={{
+                  borderRadius: "50%",
+                  width: 60,
+                  height: 60,
+                  minWidth: 0,
+                  boxShadow: "0 10px 20px rgba(102, 126, 234, 0.3)",
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  "&:hover": {
+                    transform: "scale(1.1)",
+                  },
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <Add sx={{ fontSize: 28 }} />
+              </Button>
+            </Tooltip>
+          </Box>
+        )}
 
         {/* Modal des détails */}
         <Dialog
@@ -648,7 +1024,7 @@ const CommandeList = () => {
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <ShoppingCart sx={{ fontSize: 32 }} />
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                Détails de la commande du {selectedCommande?.client_name}
+                Détails de la commande #{selectedCommande?.id}
               </Typography>
             </Box>
             <Box>
@@ -774,35 +1150,40 @@ const CommandeList = () => {
                       </Box>
                     </Grid>
 
-                    {/* Responsable */}
-                    <Grid item xs={12} md={6}>
-                      <Box
-                        sx={{
-                          p: 2,
-                          borderRadius: 2,
-                          background: "rgba(76, 175, 80, 0.05)",
-                          borderLeft: "4px solid #4caf50",
-                        }}
-                      >
-                        <Typography variant="subtitle2" color="text.secondary">
-                          <Person
-                            fontSize="small"
-                            sx={{ verticalAlign: "middle", mr: 1 }}
-                          />
-                          Responsable
-                        </Typography>
-                        <Typography
-                          variant="body1"
-                          fontWeight={600}
-                          sx={{ mt: 0.5 }}
+                    {/* Responsable (seulement pour admin) */}
+                    {userRole === "admin" && (
+                      <Grid item xs={12} md={6}>
+                        <Box
+                          sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            background: "rgba(76, 175, 80, 0.05)",
+                            borderLeft: "4px solid #4caf50",
+                          }}
                         >
-                          {selectedCommande?.user_name}
-                        </Typography>
-                      </Box>
-                    </Grid>
+                          <Typography
+                            variant="subtitle2"
+                            color="text.secondary"
+                          >
+                            <Person
+                              fontSize="small"
+                              sx={{ verticalAlign: "middle", mr: 1 }}
+                            />
+                            Responsable
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            fontWeight={600}
+                            sx={{ mt: 0.5 }}
+                          >
+                            {selectedCommande?.user_name}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    )}
 
                     {/* Date */}
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={userRole === "admin" ? 6 : 12}>
                       <Box
                         sx={{
                           p: 2,
@@ -837,7 +1218,7 @@ const CommandeList = () => {
                     </Grid>
 
                     {/* Montant */}
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={userRole === "admin" ? 6 : 12}>
                       <Box
                         sx={{
                           p: 2,
@@ -874,16 +1255,16 @@ const CommandeList = () => {
                           p: 2,
                           borderRadius: 2,
                           background:
-                            selectedCommande?.status === "Livrée"
+                            selectedCommande?.status === "livre"
                               ? "rgba(76, 175, 80, 0.08)"
-                              : selectedCommande?.status === "Annulée"
+                              : selectedCommande?.status === "annule"
                               ? "rgba(244, 67, 54, 0.08)"
                               : "rgba(255, 152, 0, 0.08)",
                           borderLeft: "4px solid",
                           borderColor:
-                            selectedCommande?.status === "Livrée"
+                            selectedCommande?.status === "livre"
                               ? "#4caf50"
-                              : selectedCommande?.status === "Annulée"
+                              : selectedCommande?.status === "annule"
                               ? "#f44336"
                               : "#ff9800",
                         }}
@@ -907,11 +1288,15 @@ const CommandeList = () => {
                               Statut de la commande
                             </Typography>
                             <Chip
-                              label={selectedCommande?.status}
+                              label={
+                                statusOptions.find(
+                                  (s) => s.value === selectedCommande?.status
+                                )?.label || selectedCommande?.status
+                              }
                               color={
-                                selectedCommande?.status === "Livrée"
+                                selectedCommande?.status === "livre"
                                   ? "success"
-                                  : selectedCommande?.status === "Annulée"
+                                  : selectedCommande?.status === "annule"
                                   ? "error"
                                   : "warning"
                               }
@@ -925,16 +1310,29 @@ const CommandeList = () => {
                               }}
                             />
                           </Box>
-                          {selectedCommande?.status === "En cours" && (
-                            <Button
-                              variant="outlined"
-                              color="primary"
-                              size="small"
-                              sx={{ borderRadius: 2 }}
-                            >
-                              Mettre à jour le statut
-                            </Button>
-                          )}
+                          {userRole === "admin" &&
+                            selectedCommande?.status !== "livre" && (
+                              <Button
+                                variant="outlined"
+                                color="primary"
+                                size="small"
+                                sx={{ borderRadius: 2 }}
+                                onClick={() => {
+                                  const newStatus =
+                                    selectedCommande?.status ===
+                                    "en_preparation"
+                                      ? "valide"
+                                      : "livre";
+                                  updateCommandeStatus(
+                                    selectedCommande.id,
+                                    newStatus
+                                  );
+                                  setDetailsOpen(false);
+                                }}
+                              >
+                                Mettre à jour le statut
+                              </Button>
+                            )}
                         </Box>
                       </Box>
                     </Grid>
@@ -1022,6 +1420,17 @@ const CommandeList = () => {
                           >
                             Total
                           </TableCell>
+                          {userRole === "admin" && (
+                            <TableCell
+                              sx={{
+                                fontWeight: 600,
+                                color: "white",
+                                fontSize: "0.875rem",
+                              }}
+                            >
+                              Stock
+                            </TableCell>
+                          )}
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1053,7 +1462,7 @@ const CommandeList = () => {
                                     variant="body2"
                                     color="text.secondary"
                                   >
-                                    Réf: {detail.id}
+                                    Réf: {detail.piece_id}
                                   </Typography>
                                 </Box>
                               </Box>
@@ -1084,6 +1493,11 @@ const CommandeList = () => {
                                 })}
                               </Typography>
                             </TableCell>
+                            {userRole === "admin" && (
+                              <TableCell>
+                                {getStockAlert(detail.stock)}
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                         <TableRow
@@ -1095,10 +1509,16 @@ const CommandeList = () => {
                             },
                           }}
                         >
-                          <TableCell colSpan={3} align="right">
+                          <TableCell
+                            colSpan={userRole === "admin" ? 3 : 2}
+                            align="right"
+                          >
                             Total général
                           </TableCell>
-                          <TableCell align="right">
+                          <TableCell
+                            align="right"
+                            colSpan={userRole === "admin" ? 2 : 1}
+                          >
                             {selectedCommande?.montant?.toLocaleString(
                               "fr-FR",
                               {
@@ -1175,12 +1595,15 @@ const CommandeList = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
         {/* Modal du formulaire */}
         <CommandeForm
           open={openForm}
           onClose={() => setOpenForm(false)}
           refreshCommandes={fetchCommandes}
           commandeToEdit={commandeToEdit}
+          userRole={userRole}
+          userId={userId}
         />
       </Box>
     </Fade>

@@ -6,10 +6,10 @@ const sendEmail = require("../server/utils/email");
 require("dotenv").config();
 
 const authController = {
-  // Enregistrer un nouvel utilisateur
+  // Enregistrement d'un utilisateur
   register: async (req, res) => {
     try {
-      const { firstName, lastName, email, password } = req.body;
+      const { firstName, lastName, email, password, avatar } = req.body;
 
       const existingUser = await User.findByEmail(email);
       if (existingUser) {
@@ -26,10 +26,11 @@ const authController = {
         email,
         password: hashedPassword,
         role: email === process.env.ADMIN_EMAIL ? "admin" : "user",
+        avatar,
       });
 
       const token = jwt.sign(
-        { id: user.id, email, role: user.role },
+        { id: user.id, email: user.email, role: user.role },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -70,6 +71,7 @@ const authController = {
           lastName: user.lastName,
           email: user.email,
           role: user.role,
+          avatar: user.avatar,
         },
       });
     } catch (error) {
@@ -78,7 +80,7 @@ const authController = {
     }
   },
 
-  // Récupérer le profil
+  // Obtenir le profil de l'utilisateur connecté
   getProfile: async (req, res) => {
     try {
       const user = await User.findById(req.user.id);
@@ -95,9 +97,9 @@ const authController = {
   // Mettre à jour le profil
   updateProfile: async (req, res) => {
     try {
-      const { firstName, lastName, email, password, role } = req.body;
+      const { firstName, lastName, email, password, role, avatar } = req.body;
 
-      const updateData = { firstName, lastName, email, role };
+      const updateData = { firstName, lastName, email, role, avatar };
 
       if (password) {
         updateData.password = await bcrypt.hash(password, 12);
@@ -115,7 +117,7 @@ const authController = {
     }
   },
 
-  // Mot de passe oublié
+  // Demande de mot de passe oublié
   forgotPassword: async (req, res) => {
     try {
       const { email } = req.body;
@@ -133,20 +135,31 @@ const authController = {
         .createHash("sha256")
         .update(resetToken)
         .digest("hex");
-
       const passwordResetExpires = Date.now() + 3600000; // 1 heure
 
-      user.passwordResetToken = passwordResetToken;
-      user.passwordResetExpires = passwordResetExpires;
-      await user.save({ validateBeforeSave: false });
+      await User.update(user.id, {
+        passwordResetToken,
+        passwordResetExpires,
+      });
 
       const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-      const message = `Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le lien suivant pour continuer :\n\n${resetURL}\n\nCe lien est valide pendant 1 heure.`;
+      const subject = "Réinitialisation de votre mot de passe (1h)";
+      const message = `
+Bonjour ${user.firstName || ""},<br><br>
+Vous avez demandé la réinitialisation de votre mot de passe.<br><br>
+Cliquez sur le lien ci-dessous pour continuer :<br>
+<a href="${resetURL}" target="_blank">${resetURL}</a><br><br>
+Ce lien est valide pendant 1 heure.<br><br>
+Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.<br><br>
+Cordialement,<br>
+L'équipe Support
+      `;
 
       await sendEmail({
         email: user.email,
-        subject: "Réinitialisation de votre mot de passe (1h)",
+        subject,
         message,
+        html: true,
       });
 
       res.status(200).json({
@@ -159,7 +172,7 @@ const authController = {
     }
   },
 
-  // Réinitialiser le mot de passe
+  // Réinitialiser le mot de passe avec token
   resetPassword: async (req, res) => {
     try {
       const { token } = req.params;
@@ -169,22 +182,21 @@ const authController = {
         .createHash("sha256")
         .update(token)
         .digest("hex");
+      const user = await User.findByResetToken(hashedToken);
 
-      const user = await User.findOne({
-        passwordResetToken: hashedToken,
-        passwordResetExpires: { $gt: Date.now() },
-      });
-
-      if (!user) {
+      if (!user || user.passwordResetExpires < Date.now()) {
         return res.status(400).json({
           message: "Token invalide ou expiré. Veuillez refaire une demande.",
         });
       }
 
-      user.password = await bcrypt.hash(password, 12);
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      await user.save();
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      await User.update(user.id, {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      });
 
       await sendEmail({
         email: user.email,

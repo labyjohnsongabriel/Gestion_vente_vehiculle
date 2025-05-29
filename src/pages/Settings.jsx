@@ -26,6 +26,9 @@ import {
   Stack,
   Avatar,
   Chip,
+  Tooltip,
+  IconButton,
+  Badge,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
@@ -38,11 +41,19 @@ import {
   LightMode as LightModeIcon,
   CheckCircle as CheckCircleIcon,
   SettingsBackupRestore as ResetIcon,
+  Info as InfoIcon,
+  Email as EmailIcon,
+  Sms as SmsIcon,
+  Smartphone as SmartphoneIcon,
+  HelpOutline as HelpOutlineIcon,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import { styled } from "@mui/system";
 import axios from "axios";
 import { useAuth } from "../components/context/AuthContext";
+import { useTranslation } from "react-i18next";
+import { languages, timezones } from "../components/utils/settingsData";
+import { useSettings } from "../components/context/SettingsContext";
 
 // Composants stylisés
 const SettingsCard = styled(Paper)(({ theme }) => ({
@@ -51,9 +62,10 @@ const SettingsCard = styled(Paper)(({ theme }) => ({
   boxShadow: theme.shadows[2],
   transition: "all 0.3s ease",
   background: theme.palette.background.paper,
-  border: `1px solid ${theme.palette.divider}`,
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
   "&:hover": {
     boxShadow: theme.shadows[6],
+    transform: "translateY(-2px)",
   },
 }));
 
@@ -80,56 +92,43 @@ const SettingsSectionHeader = styled(Box)(({ theme }) => ({
   },
 }));
 
+const SettingItem = styled(Box)(({ theme }) => ({
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: theme.spacing(1.5, 0),
+  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  "&:last-child": {
+    borderBottom: "none",
+  },
+}));
+
 const Settings = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user, token } = useAuth();
+  const translation = useTranslation();
+  const t = translation.t;
+  const i18n = translation.i18n;
+
+  const { settings, setSettings, loading: settingsLoading } = useSettings();
 
   const [tabValue, setTabValue] = useState(0);
-  const [settings, setSettings] = useState({
-    darkMode: false,
-    notifications: true,
-    fontSize: "medium",
-    language: "fr",
-    dashboardLayout: "default",
-    timezone: "Europe/Paris",
-    systemAlerts: true,
-    updateNotifications: true,
-    messageNotifications: true,
-    emailNotifications: true,
-    pushNotifications: true,
-    smsNotifications: false,
-    developerMode: false,
-    advancedStats: false,
-    showTutorials: true,
-  });
-
-  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (!token) return;
-
-      try {
-        const response = await axios.get("/api/settings", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setSettings(response.data);
-      } catch (error) {
-        console.error("Failed to load settings:", error);
-        showSnackbar("Failed to load settings", "error");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSettings();
-  }, [token]);
+    if (
+      settings.language &&
+      i18n &&
+      typeof i18n.changeLanguage === "function"
+    ) {
+      i18n.changeLanguage(settings.language);
+      localStorage.setItem("lang", settings.language);
+    }
+  }, [settings.language, i18n]);
 
   const showSnackbar = (message, severity = "success") => {
     setSnackbarMessage(message);
@@ -142,31 +141,34 @@ const Settings = () => {
   };
 
   const handleSettingChange = (name, value) => {
-    setSettings((prev) => ({ ...prev, [name]: value }));
+    setSettings({ ...settings, [name]: value });
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
+    setIsSaving(true);
     try {
-      await axios.put("/api/settings", settings, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      showSnackbar("Settings saved successfully!");
+      await axios.put(
+        "/api/user/settings",
+        { settings },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      showSnackbar(t("settings.saveSuccess"));
     } catch (error) {
       console.error("Failed to save settings:", error);
-      showSnackbar("Failed to save settings", "error");
+      showSnackbar(t("settings.saveError"), "error");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
   const handleReset = async () => {
-    setIsLoading(true);
     try {
       await axios.post(
-        "/api/settings/reset",
+        "/api/user/settings/reset",
         {},
         {
           headers: {
@@ -174,18 +176,16 @@ const Settings = () => {
           },
         }
       );
-      const response = await axios.get("/api/settings", {
+      const response = await axios.get("/api/user/settings", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setSettings(response.data);
-      showSnackbar("Settings reset to defaults");
+      showSnackbar(t("settings.resetSuccess"));
     } catch (error) {
       console.error("Failed to reset settings:", error);
-      showSnackbar("Failed to reset settings", "error");
-    } finally {
-      setIsLoading(false);
+      showSnackbar(t("settings.resetError"), "error");
     }
   };
 
@@ -193,7 +193,7 @@ const Settings = () => {
     setSnackbarOpen(false);
   };
 
-  if (isLoading && !settings) {
+  if ((settingsLoading || !settings) && !settings) {
     return (
       <Container
         maxWidth="lg"
@@ -234,10 +234,10 @@ const Settings = () => {
           </Avatar>
           <Box>
             <Typography variant="h4" component="h1" fontWeight={700}>
-              Paramètres
+              {t("settings.title")}
             </Typography>
             <Typography variant="subtitle1" color="text.secondary">
-              Personnalisez votre expérience utilisateur
+              {t("settings.subtitle")}
             </Typography>
           </Box>
         </Stack>
@@ -257,18 +257,23 @@ const Settings = () => {
         }}
       >
         <StyledTab
-          label="Apparence"
+          label={t("settings.appearance")}
           icon={<PaletteIcon />}
           iconPosition="start"
         />
         <StyledTab
-          label="Notifications"
+          label={t("settings.notifications")}
           icon={<NotificationsIcon />}
           iconPosition="start"
         />
         <StyledTab
-          label="Préférences"
+          label={t("settings.preferences")}
           icon={<DashboardIcon />}
+          iconPosition="start"
+        />
+        <StyledTab
+          label={t("settings.accessibility")}
+          icon={<HelpOutlineIcon />}
           iconPosition="start"
         />
       </Tabs>
@@ -282,107 +287,54 @@ const Settings = () => {
             <SettingsCard>
               <SettingsSectionHeader>
                 <PaletteIcon />
-                <Typography variant="h6">Thème</Typography>
+                <Typography variant="h6">{t("settings.theme")}</Typography>
               </SettingsSectionHeader>
 
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.darkMode}
-                      onChange={(e) =>
-                        handleSettingChange("darkMode", e.target.checked)
-                      }
-                      color="primary"
-                      size="medium"
-                    />
-                  }
-                  label={`Mode ${settings.darkMode ? "sombre" : "clair"}`}
-                />
-                <Chip
-                  icon={
-                    settings.darkMode ? (
-                      <DarkModeIcon fontSize="small" />
-                    ) : (
-                      <LightModeIcon fontSize="small" />
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.darkMode")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.darkModeDescription")}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.themeMode === "dark"}
+                  onChange={(e) =>
+                    handleSettingChange(
+                      "themeMode",
+                      e.target.checked ? "dark" : "light"
                     )
                   }
-                  label={settings.darkMode ? "Sombre" : "Clair"}
-                  variant="outlined"
+                  color="primary"
                 />
-              </Stack>
+              </SettingItem>
 
-              <FormControl sx={{ mt: 4 }} component="fieldset" fullWidth>
-                <FormLabel component="legend" sx={{ mb: 2 }}>
-                  Taille de texte
-                </FormLabel>
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.fontSize")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.fontSizeDescription")}
+                  </Typography>
+                </Box>
                 <RadioGroup
                   value={settings.fontSize}
                   onChange={(e) =>
                     handleSettingChange("fontSize", e.target.value)
                   }
                   row
-                  sx={{ gap: 2 }}
+                  sx={{ gap: 1 }}
                 >
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      flex: 1,
-                      ...(settings.fontSize === "small" && {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                      }),
-                    }}
-                  >
-                    <FormControlLabel
-                      value="small"
-                      control={<Radio />}
-                      label="Petit"
-                      sx={{ width: "100%" }}
-                    />
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      flex: 1,
-                      ...(settings.fontSize === "medium" && {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                      }),
-                    }}
-                  >
-                    <FormControlLabel
-                      value="medium"
-                      control={<Radio />}
-                      label="Moyen"
-                      sx={{ width: "100%" }}
-                    />
-                  </Paper>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      flex: 1,
-                      ...(settings.fontSize === "large" && {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                      }),
-                    }}
-                  >
-                    <FormControlLabel
-                      value="large"
-                      control={<Radio />}
-                      label="Grand"
-                      sx={{ width: "100%" }}
-                    />
-                  </Paper>
+                  <Tooltip title={t("settings.small")}>
+                    <Radio value="small" size="small" />
+                  </Tooltip>
+                  <Tooltip title={t("settings.medium")}>
+                    <Radio value="medium" size="small" />
+                  </Tooltip>
+                  <Tooltip title={t("settings.large")}>
+                    <Radio value="large" size="small" />
+                  </Tooltip>
                 </RadioGroup>
-              </FormControl>
+              </SettingItem>
             </SettingsCard>
           </Grid>
 
@@ -390,55 +342,59 @@ const Settings = () => {
             <SettingsCard>
               <SettingsSectionHeader>
                 <LanguageIcon />
-                <Typography variant="h6">Langue & Région</Typography>
+                <Typography variant="h6">
+                  {t("settings.languageRegion")}
+                </Typography>
               </SettingsSectionHeader>
 
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="language-label">Langue</InputLabel>
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.language")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.languageDescription")}
+                  </Typography>
+                </Box>
                 <Select
-                  labelId="language-label"
                   value={settings.language}
-                  label="Langue"
                   onChange={(e) =>
                     handleSettingChange("language", e.target.value)
                   }
+                  size="small"
+                  sx={{ minWidth: 120 }}
                 >
-                  <MenuItem value="fr">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box sx={{ width: 24, height: 24 }}>🇫🇷</Box>
-                      <span>Français</span>
-                    </Stack>
-                  </MenuItem>
-                  <MenuItem value="en">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box sx={{ width: 24, height: 24 }}>🇬🇧</Box>
-                      <span>English</span>
-                    </Stack>
-                  </MenuItem>
-                  <MenuItem value="es">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box sx={{ width: 24, height: 24 }}>🇪🇸</Box>
-                      <span>Español</span>
-                    </Stack>
-                  </MenuItem>
+                  {languages.map((lang) => (
+                    <MenuItem key={lang.code} value={lang.code}>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Box sx={{ width: 24, height: 24 }}>{lang.flag}</Box>
+                        <span>{lang.name}</span>
+                      </Stack>
+                    </MenuItem>
+                  ))}
                 </Select>
-              </FormControl>
+              </SettingItem>
 
-              <FormControl fullWidth>
-                <InputLabel id="timezone-label">Fuseau horaire</InputLabel>
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.timezone")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.timezoneDescription")}
+                  </Typography>
+                </Box>
                 <Select
-                  labelId="timezone-label"
                   value={settings.timezone}
-                  label="Fuseau horaire"
                   onChange={(e) =>
                     handleSettingChange("timezone", e.target.value)
                   }
+                  size="small"
+                  sx={{ minWidth: 180 }}
                 >
-                  <MenuItem value="Europe/Paris">Paris (GMT+1)</MenuItem>
-                  <MenuItem value="Europe/London">London (GMT+0)</MenuItem>
-                  <MenuItem value="America/New_York">New York (GMT-5)</MenuItem>
+                  {timezones.map((tz) => (
+                    <MenuItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </MenuItem>
+                  ))}
                 </Select>
-              </FormControl>
+              </SettingItem>
             </SettingsCard>
           </Grid>
         </Grid>
@@ -452,74 +408,85 @@ const Settings = () => {
               <SettingsSectionHeader>
                 <NotificationsIcon />
                 <Typography variant="h6">
-                  Préférences de notification
+                  {t("settings.notificationPreferences")}
                 </Typography>
               </SettingsSectionHeader>
 
-              <Stack spacing={3}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.notifications}
-                      onChange={(e) =>
-                        handleSettingChange("notifications", e.target.checked)
-                      }
-                      color="primary"
-                    />
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.enableNotifications")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.enableNotificationsDescription")}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.notifications}
+                  onChange={(e) =>
+                    handleSettingChange("notifications", e.target.checked)
                   }
-                  label="Notifications activées"
+                  color="primary"
                 />
+              </SettingItem>
 
-                <FormControl component="fieldset">
-                  <FormLabel component="legend">
-                    Types de notifications
-                  </FormLabel>
-                  <Stack spacing={1} sx={{ mt: 1 }}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={settings.systemAlerts}
-                          onChange={(e) =>
-                            handleSettingChange(
-                              "systemAlerts",
-                              e.target.checked
-                            )
-                          }
-                        />
+              <Divider sx={{ my: 2 }} />
+
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  {t("settings.notificationTypes")}
+                </Typography>
+                <Stack spacing={2}>
+                  <SettingItem>
+                    <Box>
+                      <Typography>{t("settings.systemAlerts")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.systemAlertsDescription")}
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={settings.systemAlerts}
+                      onChange={(e) =>
+                        handleSettingChange("systemAlerts", e.target.checked)
                       }
-                      label="Alertes système"
                     />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={settings.updateNotifications}
-                          onChange={(e) =>
-                            handleSettingChange(
-                              "updateNotifications",
-                              e.target.checked
-                            )
-                          }
-                        />
+                  </SettingItem>
+
+                  <SettingItem>
+                    <Box>
+                      <Typography>{t("settings.updates")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.updatesDescription")}
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={settings.updateNotifications}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "updateNotifications",
+                          e.target.checked
+                        )
                       }
-                      label="Mises à jour"
                     />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={settings.messageNotifications}
-                          onChange={(e) =>
-                            handleSettingChange(
-                              "messageNotifications",
-                              e.target.checked
-                            )
-                          }
-                        />
+                  </SettingItem>
+
+                  <SettingItem>
+                    <Box>
+                      <Typography>{t("settings.messages")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.messagesDescription")}
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={settings.messageNotifications}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "messageNotifications",
+                          e.target.checked
+                        )
                       }
-                      label="Nouveaux messages"
                     />
-                  </Stack>
-                </FormControl>
-              </Stack>
+                  </SettingItem>
+                </Stack>
+              </Box>
             </SettingsCard>
           </Grid>
 
@@ -527,52 +494,70 @@ const Settings = () => {
             <SettingsCard>
               <SettingsSectionHeader>
                 <NotificationsIcon />
-                <Typography variant="h6">Méthodes de notification</Typography>
+                <Typography variant="h6">
+                  {t("settings.notificationMethods")}
+                </Typography>
               </SettingsSectionHeader>
 
               <Stack spacing={2}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.emailNotifications}
-                      onChange={(e) =>
-                        handleSettingChange(
-                          "emailNotifications",
-                          e.target.checked
-                        )
-                      }
-                    />
-                  }
-                  label="Notifications par email"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.pushNotifications}
-                      onChange={(e) =>
-                        handleSettingChange(
-                          "pushNotifications",
-                          e.target.checked
-                        )
-                      }
-                    />
-                  }
-                  label="Notifications push"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.smsNotifications}
-                      onChange={(e) =>
-                        handleSettingChange(
-                          "smsNotifications",
-                          e.target.checked
-                        )
-                      }
-                    />
-                  }
-                  label="Notifications SMS"
-                />
+                <SettingItem>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <EmailIcon color="action" />
+                    <Box>
+                      <Typography>
+                        {t("settings.emailNotifications")}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.emailNotificationsDescription")}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={settings.emailNotifications}
+                    onChange={(e) =>
+                      handleSettingChange(
+                        "emailNotifications",
+                        e.target.checked
+                      )
+                    }
+                  />
+                </SettingItem>
+
+                <SettingItem>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <SmartphoneIcon color="action" />
+                    <Box>
+                      <Typography>{t("settings.pushNotifications")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.pushNotificationsDescription")}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={settings.pushNotifications}
+                    onChange={(e) =>
+                      handleSettingChange("pushNotifications", e.target.checked)
+                    }
+                  />
+                </SettingItem>
+
+                <SettingItem>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <SmsIcon color="action" />
+                    <Box>
+                      <Typography>{t("settings.smsNotifications")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("settings.smsNotificationsDescription")}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Switch
+                    checked={settings.smsNotifications}
+                    onChange={(e) =>
+                      handleSettingChange("smsNotifications", e.target.checked)
+                    }
+                  />
+                </SettingItem>
               </Stack>
             </SettingsCard>
           </Grid>
@@ -587,44 +572,51 @@ const Settings = () => {
               <SettingsSectionHeader>
                 <DashboardIcon />
                 <Typography variant="h6">
-                  Disposition du tableau de bord
+                  {t("settings.dashboardLayout")}
                 </Typography>
               </SettingsSectionHeader>
 
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="dashboard-layout-label">Disposition</InputLabel>
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.layoutStyle")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.layoutStyleDescription")}
+                  </Typography>
+                </Box>
                 <Select
-                  labelId="dashboard-layout-label"
                   value={settings.dashboardLayout}
-                  label="Disposition"
                   onChange={(e) =>
                     handleSettingChange("dashboardLayout", e.target.value)
                   }
+                  size="small"
+                  sx={{ minWidth: 120 }}
                 >
                   <MenuItem value="default">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box>📊</Box>
-                      <span>Standard (recommandé)</span>
-                    </Stack>
+                    {t("settings.layoutDefault")}
                   </MenuItem>
                   <MenuItem value="compact">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box>📉</Box>
-                      <span>Compact</span>
-                    </Stack>
+                    {t("settings.layoutCompact")}
                   </MenuItem>
                   <MenuItem value="extended">
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Box>📈</Box>
-                      <span>Étendu</span>
-                    </Stack>
+                    {t("settings.layoutExtended")}
                   </MenuItem>
                 </Select>
-              </FormControl>
+              </SettingItem>
 
-              <Typography variant="body2" color="text.secondary">
-                La disposition sera appliquée après rechargement de la page.
-              </Typography>
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.denseLayout")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.denseLayoutDescription")}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.denseLayout}
+                  onChange={(e) =>
+                    handleSettingChange("denseLayout", e.target.checked)
+                  }
+                />
+              </SettingItem>
             </SettingsCard>
           </Grid>
 
@@ -632,78 +624,149 @@ const Settings = () => {
             <SettingsCard>
               <SettingsSectionHeader>
                 <DashboardIcon />
-                <Typography variant="h6">Options avancées</Typography>
+                <Typography variant="h6">
+                  {t("settings.advancedOptions")}
+                </Typography>
               </SettingsSectionHeader>
 
               <Stack spacing={2}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.developerMode}
-                      onChange={(e) =>
-                        handleSettingChange("developerMode", e.target.checked)
-                      }
-                    />
-                  }
-                  label="Mode développeur"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.advancedStats}
-                      onChange={(e) =>
-                        handleSettingChange("advancedStats", e.target.checked)
-                      }
-                    />
-                  }
-                  label="Afficher les statistiques avancées"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.showTutorials}
-                      onChange={(e) =>
-                        handleSettingChange("showTutorials", e.target.checked)
-                      }
-                    />
-                  }
-                  label="Toujours afficher les tutoriels"
-                />
+                <SettingItem>
+                  <Box>
+                    <Typography>{t("settings.developerMode")}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {t("settings.developerModeDescription")}
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={settings.developerMode}
+                    onChange={(e) =>
+                      handleSettingChange("developerMode", e.target.checked)
+                    }
+                  />
+                </SettingItem>
+
+                <SettingItem>
+                  <Box>
+                    <Typography>{t("settings.advancedStats")}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {t("settings.advancedStatsDescription")}
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={settings.advancedStats}
+                    onChange={(e) =>
+                      handleSettingChange("advancedStats", e.target.checked)
+                    }
+                  />
+                </SettingItem>
+
+                <SettingItem>
+                  <Box>
+                    <Typography>{t("settings.showTutorials")}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {t("settings.showTutorialsDescription")}
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={settings.showTutorials}
+                    onChange={(e) =>
+                      handleSettingChange("showTutorials", e.target.checked)
+                    }
+                  />
+                </SettingItem>
               </Stack>
             </SettingsCard>
           </Grid>
         </Grid>
       )}
 
+      {/* Onglet Accessibilité */}
+      {tabValue === 3 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <SettingsCard>
+              <SettingsSectionHeader>
+                <HelpOutlineIcon />
+                <Typography variant="h6">
+                  {t("settings.accessibility")}
+                </Typography>
+              </SettingsSectionHeader>
+
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.reducedMotion")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.reducedMotionDescription")}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.reducedMotion}
+                  onChange={(e) =>
+                    handleSettingChange("reducedMotion", e.target.checked)
+                  }
+                />
+              </SettingItem>
+
+              <SettingItem>
+                <Box>
+                  <Typography>{t("settings.highContrast")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("settings.highContrastDescription")}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={settings.highContrast}
+                  onChange={(e) =>
+                    handleSettingChange("highContrast", e.target.checked)
+                  }
+                />
+              </SettingItem>
+            </SettingsCard>
+          </Grid>
+        </Grid>
+      )}
+
       {/* Actions */}
-      <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}>
+      <Box
+        sx={{
+          mt: 4,
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
+          gap: 2,
+        }}
+      >
         <Button
           variant="outlined"
           size="large"
           startIcon={<ResetIcon />}
           onClick={handleReset}
-          sx={{ minWidth: 200 }}
-          disabled={isLoading}
+          sx={{ minWidth: isMobile ? "100%" : 200 }}
+          disabled={settingsLoading || isSaving}
         >
-          Réinitialiser
+          {t("settings.reset")}
         </Button>
 
-        <Stack direction="row" spacing={2}>
+        <Stack
+          direction={isMobile ? "column" : "row"}
+          spacing={2}
+          sx={{ width: isMobile ? "100%" : "auto" }}
+        >
           <Button
             variant="contained"
             size="large"
             startIcon={
-              isLoading ? (
+              isSaving ? (
                 <CircularProgress size={20} color="inherit" />
               ) : (
                 <SaveIcon />
               )
             }
             onClick={handleSave}
-            disabled={isLoading}
-            sx={{ minWidth: 250 }}
+            disabled={settingsLoading || isSaving}
+            sx={{ minWidth: isMobile ? "100%" : 250 }}
           >
-            {isLoading ? "Enregistrement..." : "Enregistrer les modifications"}
+            {isSaving ? t("settings.saving") : t("settings.saveChanges")}
           </Button>
         </Stack>
       </Box>
@@ -711,7 +774,7 @@ const Settings = () => {
       {/* Notification */}
       <Snackbar
         open={snackbarOpen}
-        autoHideDuration={4000}
+        autoHideDuration={6000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
@@ -720,6 +783,7 @@ const Settings = () => {
           severity={snackbarSeverity}
           icon={<CheckCircleIcon fontSize="inherit" />}
           sx={{ width: "100%" }}
+          variant="filled"
         >
           {snackbarMessage}
         </Alert>

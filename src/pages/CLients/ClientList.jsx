@@ -366,7 +366,7 @@ const ClientList = () => {
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Adresse
                   </TableCell>
-       {      /*     <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                  {/*     <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
                   </TableCell>*/}
                   <TableCell
@@ -454,17 +454,40 @@ const ClientList = () => {
                           }}
                         >
                           <TableCell>
-                            <Avatar
-                              src={client.image}
+                            <Box
                               sx={{
-                                width: 56,
-                                height: 56,
-                                border: "2px solid #667eea",
-                                boxShadow: "0 4px 12px rgba(102, 126, 234, 0.2)",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
                               }}
                             >
-                              {client.name?.charAt(0) || "C"}
-                            </Avatar>
+                              <Avatar
+                                src={client?.image || undefined}
+                                alt={client?.name || "Client"}
+                                sx={{
+                                  width: 48,
+                                  height: 48,
+                                  border: "2px solid #667eea",
+                                  boxShadow:
+                                    "0 4px 12px rgba(102, 126, 234, 0.2)",
+                                  bgcolor: !client?.image
+                                    ? "#667eea"
+                                    : "transparent",
+                                  color: !client?.image ? "#fff" : "inherit",
+                                  fontWeight: "bold",
+                                  fontSize: 20,
+                                }}
+                              >
+                                {client?.name
+                                  ? client.name.charAt(0).toUpperCase()
+                                  : "C"}
+                              </Avatar>
+                              <Typography
+                                sx={{ fontWeight: 500, color: "#3a4b6d" }}
+                              >
+                                {client?.name || "Client inconnu"}
+                              </Typography>
+                            </Box>
                           </TableCell>
                           <TableCell
                             sx={{
@@ -493,7 +516,7 @@ const ClientList = () => {
                               {client.address}
                             </Typography>
                           </TableCell>
-                 {/*         <TableCell>
+                          {/*         <TableCell>
                             <Chip
                               label={
                                 client.status === "active" ? "Actif" : "Inactif"
@@ -513,7 +536,8 @@ const ClientList = () => {
                               }}
                             />
                           </TableCell>
-*/}                          <TableCell align="right">
+*/}{" "}
+                          <TableCell align="right">
                             <Box
                               sx={{
                                 display: "flex",

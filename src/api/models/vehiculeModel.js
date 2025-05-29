@@ -64,7 +64,7 @@ const Vehicule = {
       type,
       statut,
       date_ajout,
-      id,
+
     ]);
     return result;
   },

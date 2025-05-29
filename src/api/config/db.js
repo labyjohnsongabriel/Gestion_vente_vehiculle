@@ -1,6 +1,6 @@
 const mysql = require("mysql2/promise");
 
-// Pool de connexions MySQL
+// Création du pool de connexions
 const connection = mysql.createPool({
   host: "localhost",
   user: "root",
@@ -11,7 +11,8 @@ const connection = mysql.createPool({
 
 // Fonction de création des tables
 async function createTables() {
-  const createTablesQuery = `
+  try {
+    await connection.query(`
     CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       firstName VARCHAR(100),
@@ -22,28 +23,27 @@ async function createTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    \-- User settings table
-CREATE TABLE IF NOT EXISTS user\_settings (
-id INT AUTO\_INCREMENT PRIMARY KEY,
-user\_id INT NOT NULL,
-dark\_mode BOOLEAN DEFAULT FALSE,
-notifications\_enabled BOOLEAN DEFAULT TRUE,
-font\_size ENUM('small', 'medium', 'large') DEFAULT 'medium',
-language VARCHAR(10) DEFAULT 'fr',
-dashboard\_layout ENUM('default', 'compact', 'extended') DEFAULT 'default',
-timezone VARCHAR(50) DEFAULT 'Europe/Paris',
-system\_alerts BOOLEAN DEFAULT TRUE,
-update\_notifications BOOLEAN DEFAULT TRUE,
-message\_notifications BOOLEAN DEFAULT TRUE,
-email\_notifications BOOLEAN DEFAULT TRUE,
-push\_notifications BOOLEAN DEFAULT TRUE,
-sms\_notifications BOOLEAN DEFAULT FALSE,
-developer\_mode BOOLEAN DEFAULT FALSE,
-advanced\_stats BOOLEAN DEFAULT FALSE,
-show\_tutorials BOOLEAN DEFAULT TRUE,
-FOREIGN KEY (user\_id) REFERENCES users(id) ON DELETE CASCADE,
-UNIQUE KEY (user\_id)
-);
+    CREATE TABLE IF NOT EXISTS user_settings (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      dark_mode BOOLEAN DEFAULT FALSE,
+      notifications_enabled BOOLEAN DEFAULT TRUE,
+      font_size ENUM('small', 'medium', 'large') DEFAULT 'medium',
+      language VARCHAR(10) DEFAULT 'fr',
+      dashboard_layout ENUM('default', 'compact', 'extended') DEFAULT 'default',
+      timezone VARCHAR(50) DEFAULT 'Europe/Paris',
+      system_alerts BOOLEAN DEFAULT TRUE,
+      update_notifications BOOLEAN DEFAULT TRUE,
+      message_notifications BOOLEAN DEFAULT TRUE,
+      email_notifications BOOLEAN DEFAULT TRUE,
+      push_notifications BOOLEAN DEFAULT TRUE,
+      sms_notifications BOOLEAN DEFAULT FALSE,
+      developer_mode BOOLEAN DEFAULT FALSE,
+      advanced_stats BOOLEAN DEFAULT FALSE,
+      show_tutorials BOOLEAN DEFAULT TRUE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY (user_id)
+    );
 
     CREATE TABLE IF NOT EXISTS categories (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,6 +126,18 @@ UNIQUE KEY (user\_id)
       FOREIGN KEY (commande_id) REFERENCES commandes(id)
     );
 
+    CREATE TABLE IF NOT EXISTS stock_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      stock_id INT NOT NULL,
+      \`change\` INT NOT NULL,
+      new_quantity INT NOT NULL,
+      min_quantity INT DEFAULT 0,
+      reason VARCHAR(255),
+      user_name VARCHAR(100),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS pieces_vehicules (
       piece_id INT,
       vehicule_id INT,
@@ -133,13 +145,11 @@ UNIQUE KEY (user\_id)
       FOREIGN KEY (piece_id) REFERENCES pieces(id),
       FOREIGN KEY (vehicule_id) REFERENCES vehicules(id)
     );
-  `;
+    `);
 
-  try {
-    await connection.query(createTablesQuery);
     console.log("✅ Toutes les tables ont été créées avec succès.");
   } catch (err) {
-    console.error("❌ Erreur lors de la création des tables :", err);
+    console.error("❌ Erreur lors de la création des tables :", err.message);
   }
 }
 

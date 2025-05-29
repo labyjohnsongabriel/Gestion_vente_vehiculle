@@ -40,37 +40,37 @@ import {
   Inventory,
   FilterList,
   Warning,
-  Notifications,
   History,
   ArrowUpward,
   ArrowDownward,
+  Equalizer,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import StockForm from "./StockForm";
 import StockHistory from "./StockHistory";
+import StockTrends from "./StockTrends";
 import axios from "axios";
 import { useAuth } from "../../components/context/AuthContext";
 
-const API_URL = "http://localhost:5000/api/stocks";
+const API_URL = "http://localhost:5000/api";
 
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
-    background:
-      "linear-gradient(90deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, #f5f5f5 0%, #ffffff 100%)",
   },
   "&:hover": {
-    background:
-      "linear-gradient(90deg, rgba(225,245,255,1) 0%, rgba(255,255,255,1) 100%)",
+    background: "linear-gradient(90deg, #e1f5ff 0%, #ffffff 100%)",
     transform: "scale(1.005)",
     boxShadow: theme.shadows[1],
-    transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+    transition: "all 0.3s ease",
   },
 }));
 
 const StockList = () => {
   const { user } = useAuth();
   const [stocks, setStocks] = useState([]);
+  const [pieces, setPieces] = useState([]);
   const [openForm, setOpenForm] = useState(false);
   const [stockToEdit, setStockToEdit] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,8 +81,10 @@ const StockList = () => {
   const [viewMode, setViewMode] = useState("all");
   const [anchorEl, setAnchorEl] = useState(null);
   const [openHistory, setOpenHistory] = useState(false);
+  const [openTrends, setOpenTrends] = useState(false);
   const [selectedStockId, setSelectedStockId] = useState(null);
   const [stockHistory, setStockHistory] = useState([]);
+  const [stockTrends, setStockTrends] = useState([]);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [currentAdjustment, setCurrentAdjustment] = useState({
     stockId: null,
@@ -95,32 +97,35 @@ const StockList = () => {
     try {
       setLoading(true);
       setIsRefreshing(true);
-      const response = await axios.get(API_URL);
 
-      const stocksData = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data?.data)
-        ? response.data.data
-        : [];
+      const [stocksRes, piecesRes] = await Promise.all([
+        axios.get(`${API_URL}/stocks`),
+        axios.get(`${API_URL}/pieces`),
+      ]);
 
-      const validatedStocks = stocksData.map((stock, idx) => ({
-        id: stock.id || `temp-${idx}-${Date.now()}`,
-        piece_id: stock.piece_id || "",
-        piece_name: stock.piece_name || stock.piece?.name || "Pièce sans nom",
-        quantity: Number(stock.quantity) || 0,
-        min_quantity: Number(stock.min_quantity) || 5,
-        last_updated: stock.last_updated || new Date().toISOString(),
-      }));
+      const piecesArray = Array.isArray(piecesRes.data)
+        ? piecesRes.data
+        : piecesRes.data.data || [];
+
+      const validatedStocks = stocksRes.data.map((stock) => {
+        const piece = piecesArray.find((p) => p.id === stock.piece_id) || {};
+        return {
+          id: stock.id,
+          piece_id: stock.piece_id,
+          piece_name: piece.name || "Pièce inconnue",
+          piece_reference: piece.reference || "N/A",
+          piece_code: piece.code || "N/A",
+          quantity: stock.quantity,
+          min_quantity: stock.min_quantity || 5,
+          last_updated: stock.updated_at,
+        };
+      });
 
       setStocks(validatedStocks);
+      setPieces(piecesArray);
     } catch (error) {
-      console.error("Erreur lors du chargement des stocks:", error);
-      Swal.fire({
-        title: "Erreur",
-        text: "Impossible de charger les stocks",
-        icon: "error",
-      });
-      setStocks([]);
+      console.error("Error loading data:", error);
+      Swal.fire("Error", "Failed to load data", "error");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -128,17 +133,34 @@ const StockList = () => {
   };
 
   const fetchStockHistory = async (stockId) => {
+    if (!stockId) {
+      console.error("Stock ID manquant pour fetchStockHistory");
+      Swal.fire("Erreur", "ID du stock manquant pour l'historique", "warning");
+      return;
+    }
+
     try {
-      const response = await axios.get(`${API_URL}/${stockId}/history`);
+      const response = await axios.get(`${API_URL}/stocks/${stockId}/history`);
       setStockHistory(response.data || []);
     } catch (error) {
-      console.error("Erreur lors du chargement de l'historique:", error);
-      setStockHistory([]);
-      Swal.fire({
-        title: "Erreur",
-        text: "Impossible de charger l'historique",
-        icon: "error",
-      });
+      console.error("Erreur lors du chargement de l'historique :", error);
+      Swal.fire("Erreur", "Échec du chargement de l'historique", "error");
+    }
+  };
+
+  const fetchStockTrends = async (id) => {
+    if (!id) {
+      console.error("Stock ID manquant pour fetchStockTrends");
+      Swal.fire("Erreur", "ID du stock manquant pour les tendances", "warning");
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/stocks/${id}/trends`);
+      setStockTrends(response.data || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement des tendances :", error);
+      Swal.fire("Erreur", "Échec du chargement des tendances", "error");
     }
   };
 
@@ -146,10 +168,10 @@ const StockList = () => {
     fetchStocks();
   }, []);
 
-  const handleAdjustClick = (stockId, initialChange = 0, currentQuantity) => {
+  const handleAdjustClick = (stockId, change, currentQuantity) => {
     setCurrentAdjustment({
       stockId,
-      change: initialChange,
+      change,
       reason: "",
       currentQuantity,
     });
@@ -158,69 +180,53 @@ const StockList = () => {
 
   const confirmAdjustment = async () => {
     try {
-      await axios.patch(`${API_URL}/${currentAdjustment.stockId}/adjust`, {
-        adjustment: currentAdjustment.change,
-        reason: currentAdjustment.reason,
-      });
+      await axios.patch(
+        `${API_URL}/stocks/${currentAdjustment.stockId}/adjust`,
+        {
+          adjustment: currentAdjustment.change,
+          reason: currentAdjustment.reason,
+        }
+      );
       await fetchStocks();
       setAdjustmentDialogOpen(false);
-      Swal.fire({
-        title: "Succès",
-        text: "Stock ajusté avec succès",
-        icon: "success",
-        timer: 1500,
-      });
+      Swal.fire("Success", "Stock adjusted successfully", "success");
     } catch (error) {
-      console.error("Erreur lors de l'ajustement du stock:", error);
-      Swal.fire({
-        title: "Erreur",
-        text: "Échec de l'ajustement du stock",
-        icon: "error",
-      });
+      console.error("Adjustment error:", error);
+      Swal.fire("Error", "Failed to adjust stock", "error");
     }
   };
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({
-      title: "Confirmer la suppression",
-      text: "Voulez-vous vraiment supprimer ce stock?",
+      title: "Confirm deletion",
+      text: "Are you sure you want to delete this stock?",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ff4444",
       cancelButtonColor: "#9e9e9e",
-      confirmButtonText: "Oui, supprimer",
-      cancelButtonText: "Annuler",
+      confirmButtonText: "Yes, delete",
     });
 
     if (result.isConfirmed) {
       try {
-        await axios.delete(`${API_URL}/${id}`);
+        await axios.delete(`${API_URL}/stocks/${id}`);
         await fetchStocks();
-        Swal.fire({
-          title: "Supprimé!",
-          text: "Le stock a été supprimé.",
-          icon: "success",
-          timer: 1500,
-        });
+        Swal.fire("Deleted!", "Stock has been deleted.", "success");
       } catch (error) {
-        console.error("Erreur lors de la suppression:", error);
-        Swal.fire({
-          title: "Erreur",
-          text: "La suppression a échoué",
-          icon: "error",
-        });
+        console.error("Deletion error:", error);
+        Swal.fire("Error", "Deletion failed", "error");
       }
     }
   };
 
   const filteredStocks = stocks.filter((stock) => {
-    if (!stock) return false;
-
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       stock.piece_name?.toLowerCase().includes(searchLower) ||
+      stock.piece_reference?.toLowerCase().includes(searchLower) ||
+      stock.piece_code?.toLowerCase().includes(searchLower) ||
       stock.quantity.toString().includes(searchTerm) ||
-      stock.id?.toLowerCase().includes(searchLower);
+      stock.id?.toString().includes(searchTerm);
 
     const matchesViewMode =
       viewMode === "all" ||
@@ -237,14 +243,13 @@ const StockList = () => {
 
   return (
     <Fade in timeout={600}>
-      <Box sx={{ p: { xs: 1, sm: 3 } }}>
+      <Box sx={{ p: 3 }}>
         <Paper sx={{ borderRadius: 4, overflow: "hidden", boxShadow: 3 }}>
           {/* Header */}
           <Box
             sx={{
               p: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
               justifyContent: "space-between",
               alignItems: "center",
               gap: 3,
@@ -254,8 +259,8 @@ const StockList = () => {
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Inventory sx={{ fontSize: 40 }} />
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                Gestion des Stocks
+              <Typography variant="h4" fontWeight={700}>
+                Gestion de stock
               </Typography>
             </Box>
 
@@ -282,7 +287,7 @@ const StockList = () => {
                 }}
               />
 
-              <Tooltip title="Filtrer">
+              <Tooltip title="Filtres">
                 <IconButton
                   sx={{ color: "white" }}
                   onClick={(e) => setAnchorEl(e.currentTarget)}
@@ -291,7 +296,7 @@ const StockList = () => {
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Actualiser">
+              <Tooltip title="Rafraîchir">
                 <IconButton
                   sx={{ color: "white" }}
                   onClick={fetchStocks}
@@ -305,7 +310,7 @@ const StockList = () => {
                 </IconButton>
               </Tooltip>
 
-              {user?.role === "professionnel" && (
+              {user?.role === "admin" && (
                 <Button
                   variant="contained"
                   startIcon={<Add />}
@@ -315,19 +320,18 @@ const StockList = () => {
                   }}
                   sx={{
                     background:
-                      "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
+                      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                     color: "white",
                     borderRadius: "50px",
-                    display: { xs: "none", sm: "flex" },
                   }}
                 >
-                  Nouveau Stock
+                  Nouveau stock
                 </Button>
               )}
             </Box>
           </Box>
 
-          {/* Filtre Menu */}
+          {/* Filter Menu */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -389,7 +393,7 @@ const StockList = () => {
             <Tab
               label={
                 <Badge badgeContent={outOfStockCount} color="error">
-                  Rupture
+                  Rupture de stock
                 </Badge>
               }
               value="out"
@@ -410,12 +414,15 @@ const StockList = () => {
                     Pièce
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Référence
+                  </TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Quantité
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
                   </TableCell>
-                  {user?.role === "professionnel" && (
+                  {user?.role === "admin" && (
                     <TableCell sx={{ color: "white", fontWeight: 600 }}>
                       Actions
                     </TableCell>
@@ -435,7 +442,10 @@ const StockList = () => {
                       <TableCell>
                         <Skeleton animation="wave" />
                       </TableCell>
-                      {user?.role === "professionnel" && (
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
+                      {user?.role === "admin" && (
                         <TableCell>
                           <Skeleton animation="wave" />
                         </TableCell>
@@ -445,7 +455,7 @@ const StockList = () => {
                 ) : filteredStocks.length === 0 ? (
                   <PremiumTableRow>
                     <TableCell
-                      colSpan={user?.role === "professionnel" ? 4 : 3}
+                      colSpan={user?.role === "admin" ? 5 : 4}
                       align="center"
                       sx={{ py: 6 }}
                     >
@@ -490,6 +500,11 @@ const StockList = () => {
                           </Box>
                         </TableCell>
                         <TableCell>
+                          <Typography>
+                            {stock.piece_reference || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
                           <Typography
                             fontWeight={600}
                             color={
@@ -517,10 +532,10 @@ const StockList = () => {
                           <Chip
                             label={
                               stock.quantity <= 0
-                                ? "Épuisé"
+                                ? "Rupture de stock"
                                 : stock.quantity <= stock.min_quantity
                                 ? "Stock faible"
-                                : "Disponible"
+                                : "En stock"
                             }
                             color={
                               stock.quantity <= 0
@@ -536,7 +551,7 @@ const StockList = () => {
                             }
                           />
                         </TableCell>
-                        {user?.role === "professionnel" && (
+                        {user?.role === "admin" && (
                           <TableCell>
                             <Box sx={{ display: "flex", gap: 1 }}>
                               <Tooltip title="Historique">
@@ -551,7 +566,20 @@ const StockList = () => {
                                   <History fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Augmenter stock">
+                              <Tooltip title="Tendances">
+                                <IconButton
+                                  onClick={async () => {
+                                    setSelectedStockId(stock.id);
+                                    await fetchStockTrends(stock.id);
+                                    setOpenTrends(true);
+                                  }}
+                                  size="small"
+                                  color="info"
+                                >
+                                  <Equalizer fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Augmenter">
                                 <IconButton
                                   onClick={() =>
                                     handleAdjustClick(
@@ -566,7 +594,7 @@ const StockList = () => {
                                   <ArrowUpward fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Diminuer stock">
+                              <Tooltip title="Diminuer">
                                 <IconButton
                                   onClick={() =>
                                     handleAdjustClick(
@@ -627,16 +655,9 @@ const StockList = () => {
           />
         </Paper>
 
-        {/* Bouton mobile pour ajout */}
-        {user?.role === "professionnel" && (
-          <Box
-            sx={{
-              position: "fixed",
-              bottom: 24,
-              right: 24,
-              display: { xs: "block", sm: "none" },
-            }}
-          >
+        {/* Mobile Add Button */}
+        {user?.role === "admin" && (
+          <Box sx={{ position: "fixed", bottom: 24, right: 24 }}>
             <Tooltip title="Ajouter un stock">
               <Button
                 variant="contained"
@@ -650,7 +671,7 @@ const StockList = () => {
                   height: 60,
                   minWidth: 0,
                   background:
-                    "linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)",
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 }}
               >
                 <Add />
@@ -659,7 +680,7 @@ const StockList = () => {
           </Box>
         )}
 
-        {/* Dialogue d'ajustement */}
+        {/* Adjustment Dialog */}
         <Dialog
           open={adjustmentDialogOpen}
           onClose={() => setAdjustmentDialogOpen(false)}
@@ -673,9 +694,9 @@ const StockList = () => {
           </DialogTitle>
           <DialogContent>
             <DialogContentText>
-              Quantité actuelle: {currentAdjustment.currentQuantity}
+              Quantité actuelle : {currentAdjustment.currentQuantity}
               <br />
-              Nouvelle quantité:{" "}
+              Nouvelle quantité :{" "}
               {currentAdjustment.currentQuantity + currentAdjustment.change}
             </DialogContentText>
             <TextField
@@ -692,6 +713,7 @@ const StockList = () => {
                   reason: e.target.value,
                 }))
               }
+              required
             />
           </DialogContent>
           <DialogActions>
@@ -702,28 +724,35 @@ const StockList = () => {
               onClick={confirmAdjustment}
               color={currentAdjustment.change > 0 ? "success" : "error"}
               variant="contained"
+              disabled={!currentAdjustment.reason}
             >
               Confirmer
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* Formulaire de stock */}
-        {openForm && (
-          <StockForm
-            open={openForm}
-            onClose={() => setOpenForm(false)}
-            stock={stockToEdit}
-            refreshStocks={fetchStocks}
-            userRole={user?.role}
-          />
-        )}
+        {/* Formulaire Stock */}
+        <StockForm
+          open={openForm}
+          onClose={() => setOpenForm(false)}
+          stockToEdit={stockToEdit}
+          refreshStocks={fetchStocks}
+          pieces={pieces}
+        />
 
-        {/* Historique des mouvements */}
+        {/* Stock History */}
         <StockHistory
           open={openHistory}
           onClose={() => setOpenHistory(false)}
           history={stockHistory}
+          stockId={selectedStockId}
+        />
+
+        {/* Stock Trends */}
+        <StockTrends
+          open={openTrends}
+          onClose={() => setOpenTrends(false)}
+          trends={stockTrends}
           stockId={selectedStockId}
         />
       </Box>

@@ -93,10 +93,20 @@ const FactureList = () => {
       setLoading(true);
       setIsRefreshing(true);
       const response = await axios.get(API_URL);
-      setFactures(response.data);
+      // Correction : toujours un tableau
+      let facturesData = [];
+      if (Array.isArray(response.data)) {
+        facturesData = response.data;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        facturesData = response.data.data;
+      } else {
+        facturesData = [];
+      }
+      setFactures(facturesData);
     } catch (error) {
       console.error("Erreur lors du chargement des factures:", error);
       Swal.fire("Erreur", "Impossible de charger les factures", "error");
+      setFactures([]); // Toujours un tableau pour éviter l'erreur
     } finally {
       setLoading(false);
       setIsRefreshing(false);

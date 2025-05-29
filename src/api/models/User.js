@@ -1,5 +1,4 @@
-// models/User.js
-const db = require("../config/db"); // Connexion avec la version promesse de mysql2
+const db = require("../config/db"); // Connexion avec mysql2/promise
 
 const User = {
   // Trouver un utilisateur par email
@@ -8,7 +7,7 @@ const User = {
       const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
         email,
       ]);
-      return rows[0]; // Retourne le premier utilisateur trouvé
+      return rows[0];
     } catch (error) {
       throw new Error("Erreur lors de la recherche de l'utilisateur");
     }
@@ -18,17 +17,31 @@ const User = {
   findById: async (id) => {
     try {
       const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [id]);
-      return rows[0]; // Retourne l'utilisateur correspondant
+      return rows[0];
     } catch (error) {
       throw new Error("Erreur lors de la récupération de l'utilisateur");
     }
   },
 
-  // Récupérer tous les utilisateurs (sans mot de passe)
+  // Trouver un utilisateur par token de reset
+  findByResetToken: async (token) => {
+    try {
+      const [rows] = await db.query(
+        "SELECT * FROM users WHERE passwordResetToken = ? AND passwordResetExpires > ?",
+        [token, new Date()]
+      );
+      return rows[0];
+    } catch (error) {
+      console.error("Erreur SQL findByResetToken:", error);
+      throw new Error("Erreur lors de la recherche par token de reset");
+    }
+  },
+
+  // Récupérer tous les utilisateurs (y compris avatar, sans mot de passe)
   getAll: async () => {
     try {
       const [rows] = await db.query(
-        "SELECT id, firstName, lastName, email, role FROM users"
+        "SELECT id, firstName, lastName, email, role, avatar FROM users"
       );
       return rows;
     } catch (error) {
@@ -37,11 +50,18 @@ const User = {
   },
 
   // Créer un utilisateur
-  create: async ({ firstName, lastName, email, password, role }) => {
+  create: async ({
+    firstName,
+    lastName,
+    email,
+    password,
+    role,
+    avatar = null,
+  }) => {
     try {
       const [result] = await db.query(
-        "INSERT INTO users (firstName, lastName, email, password, role) VALUES (?, ?, ?, ?, ?)",
-        [firstName, lastName, email, password, role]
+        "INSERT INTO users (firstName, lastName, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)",
+        [firstName, lastName, email, password, role, avatar]
       );
       return {
         id: result.insertId,
@@ -49,6 +69,7 @@ const User = {
         lastName,
         email,
         role,
+        avatar,
       };
     } catch (error) {
       throw new Error("Erreur lors de la création de l'utilisateur");
@@ -57,23 +78,37 @@ const User = {
 
   // Comparer les mots de passe
   comparePasswords: async (inputPassword, storedPassword) => {
-    // Logique pour comparer les mots de passe (par exemple, bcrypt.compare)
-    return inputPassword === storedPassword; // Remplacez par votre logique de comparaison
+    // À remplacer par bcrypt.compare si hashé
+    return inputPassword === storedPassword;
   },
 
   // Mettre à jour un utilisateur
-  update: async (id, { firstName, lastName, email, password, role }) => {
+  update: async (id, updateFields) => {
     try {
+      const user = await User.findById(id);
+      if (!user) throw new Error("Utilisateur non trouvé");
+
+      const {
+        firstName = user.firstName,
+        lastName = user.lastName,
+        email = user.email,
+        password = user.password,
+        role = user.role,
+        avatar = user.avatar,
+      } = updateFields;
+
       const [result] = await db.query(
-        "UPDATE users SET firstName = ?, lastName = ?, email = ?, password = ?, role = ? WHERE id = ?",
-        [firstName, lastName, email, password, role, id]
+        "UPDATE users SET firstName = ?, lastName = ?, email = ?, password = ?, role = ?, avatar = ? WHERE id = ?",
+        [firstName, lastName, email, password, role, avatar, id]
       );
+
       return {
         id,
         firstName,
         lastName,
         email,
         role,
+        avatar,
       };
     } catch (error) {
       throw new Error("Erreur lors de la mise à jour de l'utilisateur");

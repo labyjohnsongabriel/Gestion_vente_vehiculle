@@ -30,7 +30,6 @@ import { styled } from "@mui/material/styles";
 import theme from "../components/context/theme";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-
 const PremiumAvatar = styled(Avatar)(({ theme }) => ({
   width: 120,
   height: 120,
@@ -52,8 +51,9 @@ const GradientButton = styled(Button)(({ theme }) => ({
 }));
 
 const ProfilePage = () => {
-  const { user, token, setUser } = useAuth();
+  const { user, token } = useAuth(); // retirez setUser du destructuring
   const navigate = useNavigate();
+  const [profileUser, setProfileUser] = useState(user);
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -80,6 +80,7 @@ const ProfilePage = () => {
         newPassword: "",
         confirmPassword: "",
       });
+      setProfileUser(user);
     }
   }, [user]);
 
@@ -118,7 +119,7 @@ const ProfilePage = () => {
         }
       );
 
-      setUser(response.data);
+      setProfileUser(response.data.user || response.data); // mettez à jour l'état local
       setSuccess("Profil mis à jour avec succès");
       setEditMode(false);
     } catch (error) {
@@ -133,33 +134,44 @@ const ProfilePage = () => {
     }
   };
 
+  const handleAvatarUpdate = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const response = await fetch("http://localhost:5000/api/profile/avatar", {
+        method: "PATCH",
+        body: formData,
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || "Erreur lors de la mise à jour de l'avatar"
+        );
+      }
+
+      const updatedUser = await response.json();
+      setProfileUser(updatedUser.user || updatedUser);
+      setSuccess("Avatar mis à jour avec succès");
+    } catch (error) {
+      console.error("Error updating avatar:", error);
+      setError(error.message || "Erreur lors de la mise à jour de l'avatar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    try {
-      setLoading(true);
-      const formData = new FormData();
-      formData.append("avatar", file);
-
-      const response = await axios.put("/api/users/profile/avatar", formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      setUser(response.data);
-      setSuccess("Avatar mis à jour avec succès");
-    } catch (error) {
-      console.error("Error updating avatar:", error);
-      setError(
-        error.response?.data?.message ||
-          "Erreur lors de la mise à jour de l'avatar"
-      );
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await handleAvatarUpdate(file);
   };
 
   return (
@@ -273,8 +285,8 @@ const ProfilePage = () => {
               >
                 <Box sx={{ position: "relative", mb: 3 }}>
                   <PremiumAvatar
-                    src={user?.avatar || "/default-avatar.png"}
-                    alt={`${user?.firstName} ${user?.lastName}`}
+                    src={profileUser?.avatar || "/default-avatar.png"}
+                    alt={`${profileUser?.firstName} ${profileUser?.lastName}`}
                   />
                   {editMode && (
                     <label htmlFor="avatar-upload">
@@ -306,14 +318,16 @@ const ProfilePage = () => {
                 </Box>
 
                 <Typography variant="h5" fontWeight={600} gutterBottom>
-                  {user?.firstName} {user?.lastName}
+                  {profileUser?.firstName} {profileUser?.lastName}
                 </Typography>
 
                 <Chip
                   label={
-                    user?.isAdmin ? "Administrateur" : "Utilisateur Premium"
+                    profileUser?.isAdmin
+                      ? "Administrateur"
+                      : "Utilisateur Premium"
                   }
-                  color={user?.isAdmin ? "primary" : "secondary"}
+                  color={profileUser?.isAdmin ? "primary" : "secondary"}
                   sx={{
                     mb: 2,
                     fontWeight: 600,
@@ -334,7 +348,7 @@ const ProfilePage = () => {
                       Email
                     </Typography>
                     <Typography variant="body1" fontWeight={500}>
-                      {user?.email}
+                      {profileUser?.email}
                     </Typography>
                   </Box>
 
@@ -349,7 +363,7 @@ const ProfilePage = () => {
                       Membre depuis
                     </Typography>
                     <Typography variant="body1" fontWeight={500}>
-                      {new Date(user?.createdAt).toLocaleDateString()}
+                      {new Date(profileUser?.createdAt).toLocaleDateString()}
                     </Typography>
                   </Box>
                 </Stack>

@@ -194,6 +194,7 @@ const CommandeForm = ({ open, onClose, refreshCommandes, commandeToEdit }) => {
       });
     } else {
       setFormData({
+        
         client_id: "",
         user_id: "",
         date_commande: new Date().toISOString().split("T")[0],
@@ -464,12 +465,14 @@ const CommandeForm = ({ open, onClose, refreshCommandes, commandeToEdit }) => {
                     helperText={errors.date_commande}
                     InputLabelProps={{ shrink: true }}
                   />
-
                   <TextField
                     label="Montant total *"
                     type="number"
+                    inputMode="decimal"
                     value={formData.montant}
-                    onChange={(e) => handleChange("montant", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("montant", parseFloat(e.target.value))
+                    }
                     error={!!errors.montant}
                     helperText={errors.montant}
                     InputProps={{

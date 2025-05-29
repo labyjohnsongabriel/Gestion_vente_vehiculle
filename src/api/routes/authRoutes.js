@@ -14,6 +14,20 @@ router.post("/login", authController.login);
 router.get("/profile", authMiddleware, authController.getProfile);
 router.put("/profile", authMiddleware, authController.updateProfile);
 
+// Route pour récupérer l'utilisateur connecté (GET /api/auth/me)
+router.get("/me", authMiddleware, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Non authentifié" });
+  }
+  res.json({
+    id: req.user.id,
+    email: req.user.email,
+    role: req.user.role,
+    firstName: req.user.firstName,
+    lastName: req.user.lastName,
+  });
+});
+
 // Routes de réinitialisation de mot de passe
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password/:token", authController.resetPassword);

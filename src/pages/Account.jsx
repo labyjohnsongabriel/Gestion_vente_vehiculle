@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Container,
   Box,
@@ -13,32 +13,56 @@ import {
   Tab,
   useMediaQuery,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Person as PersonIcon,
   Email as EmailIcon,
-  Phone as PhoneIcon,
   Lock as LockIcon,
   Edit as EditIcon,
   Check as CheckIcon,
   CameraAlt as CameraIcon,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
-import "../styles/account.css"; // ton fichier css
+import axios from "axios";
+import { toast } from "react-toastify";
+import "../styles/account.css";
 
 const Account = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [tabValue, setTabValue] = useState(0);
   const [editMode, setEditMode] = useState(false);
+  const [changePasswordDialog, setChangePasswordDialog] = useState(false);
   const fileInputRef = useRef(null);
   const [userData, setUserData] = useState({
-    name: "Jean Dupont",
-    email: "jean.dupont@example.com",
-    phone: "+33 6 12 34 56 78",
-    position: "Gérant",
-    avatar: null, // Pour stocker l'URL de l'image
+    firstName: "",
+    lastName: "",
+    email: "",
+    avatar: "",
   });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await axios.get("/api/users/profile");
+      setUserData(response.data);
+    } catch (error) {
+      toast.error("Erreur lors du chargement du profil");
+      console.error(error);
+    }
+  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -49,25 +73,72 @@ const Account = () => {
     setUserData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleAvatarClick = () => {
     fileInputRef.current.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUserData((prev) => ({ ...prev, avatar: reader.result }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        
+        const response = await axios.put("/api/users/profile", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        
+        setUserData(response.data);
+        toast.success("Photo de profil mise à jour avec succès");
+      } catch (error) {
+        toast.error("Erreur lors de la mise à jour de la photo");
+        console.error(error);
+      }
     }
   };
 
-  const handleSave = () => {
-    setEditMode(false);
-    // Ici vous ajouteriez la logique pour sauvegarder les données
-    // y compris l'image de profil (userData.avatar)
+  const handleSave = async () => {
+    try {
+      const response = await axios.put("/api/users/profile", userData);
+      setUserData(response.data);
+      setEditMode(false);
+      toast.success("Profil mis à jour avec succès");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors de la mise à jour");
+      console.error(error);
+    }
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("Les mots de passe ne correspondent pas");
+      return;
+    }
+
+    try {
+      await axios.put("/api/users/profile", {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+      
+      toast.success("Mot de passe mis à jour avec succès");
+      setChangePasswordDialog(false);
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors du changement de mot de passe");
+      console.error(error);
+    }
   };
 
   return (
@@ -80,7 +151,7 @@ const Account = () => {
               src={userData.avatar}
               sx={{ width: 100, height: 100 }}
             >
-              {!userData.avatar && userData.name.charAt(0)}
+              {!userData.avatar && userData.firstName?.charAt(0)}
             </Avatar>
             {editMode && (
               <>
@@ -111,21 +182,32 @@ const Account = () => {
           </Box>
           <Box className="user-info">
             {editMode ? (
-              <TextField
-                fullWidth
-                label="Nom complet"
-                name="name"
-                value={userData.name}
-                onChange={handleInputChange}
-                className="form-field"
-              />
+              <>
+                <TextField
+                  fullWidth
+                  label="Prénom"
+                  name="firstName"
+                  value={userData.firstName}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  sx={{ mb: 1 }}
+                />
+                <TextField
+                  fullWidth
+                  label="Nom"
+                  name="lastName"
+                  value={userData.lastName}
+                  onChange={handleInputChange}
+                  className="form-field"
+                />
+              </>
             ) : (
               <Typography variant="h4" className="user-name">
-                {userData.name}
+                {userData.firstName} {userData.lastName}
               </Typography>
             )}
-            <Typography variant="subtitle1" className="user-position">
-              {userData.position}
+            <Typography variant="subtitle1" className="user-email">
+              {userData.email}
             </Typography>
           </Box>
           <Button
@@ -147,7 +229,6 @@ const Account = () => {
       >
         <Tab label="Profil" className="account-tab" />
         <Tab label="Sécurité" className="account-tab" />
-        <Tab label="Activité" className="account-tab" />
       </Tabs>
       <Divider sx={{ mb: 3 }} />
 
@@ -161,9 +242,18 @@ const Account = () => {
               </Typography>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <TextField
-                  label="Nom complet"
-                  name="name"
-                  value={userData.name}
+                  label="Prénom"
+                  name="firstName"
+                  value={userData.firstName}
+                  onChange={handleInputChange}
+                  disabled={!editMode}
+                  fullWidth
+                  className="form-field"
+                />
+                <TextField
+                  label="Nom"
+                  name="lastName"
+                  value={userData.lastName}
                   onChange={handleInputChange}
                   disabled={!editMode}
                   fullWidth
@@ -183,34 +273,31 @@ const Account = () => {
                   fullWidth
                   className="form-field"
                 />
-                <TextField
-                  label="Téléphone"
-                  name="phone"
-                  value={userData.phone}
-                  onChange={handleInputChange}
-                  disabled={!editMode}
-                  InputProps={{
-                    startAdornment: (
-                      <PhoneIcon sx={{ mr: 1, color: "action.active" }} />
-                    ),
-                  }}
-                  fullWidth
-                  className="form-field"
-                />
               </Box>
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
             <Paper elevation={2} className="content-card">
               <Typography variant="h6" className="section-title">
-                À propos
+                Photo de profil
               </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Membre depuis Janvier 2023
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-                Dernière connexion: Aujourd'hui à 14:30
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Avatar
+                  src={userData.avatar}
+                  sx={{ width: 80, height: 80 }}
+                >
+                  {!userData.avatar && userData.firstName?.charAt(0)}
+                </Avatar>
+                {editMode && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<CameraIcon />}
+                    onClick={handleAvatarClick}
+                  >
+                    Changer la photo
+                  </Button>
+                )}
+              </Box>
             </Paper>
           </Grid>
         </Grid>
@@ -224,27 +311,58 @@ const Account = () => {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <Box>
               <Typography variant="subtitle1">Mot de passe</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Dernière modification il y a 3 mois
-              </Typography>
-              <Button variant="outlined" className="security-button">
+              <Button
+                variant="outlined"
+                className="security-button"
+                onClick={() => setChangePasswordDialog(true)}
+              >
                 Changer le mot de passe
-              </Button>
-            </Box>
-            <Box>
-              <Typography variant="subtitle1">
-                Authentification à deux facteurs
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Actuellement désactivée
-              </Typography>
-              <Button variant="outlined" className="security-button">
-                Activer 2FA
               </Button>
             </Box>
           </Box>
         </Paper>
       )}
+
+      <Dialog
+        open={changePasswordDialog}
+        onClose={() => setChangePasswordDialog(false)}
+      >
+        <DialogTitle>Changer le mot de passe</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+            <TextField
+              label="Mot de passe actuel"
+              name="currentPassword"
+              type="password"
+              value={passwordData.currentPassword}
+              onChange={handlePasswordChange}
+              fullWidth
+            />
+            <TextField
+              label="Nouveau mot de passe"
+              name="newPassword"
+              type="password"
+              value={passwordData.newPassword}
+              onChange={handlePasswordChange}
+              fullWidth
+            />
+            <TextField
+              label="Confirmer le nouveau mot de passe"
+              name="confirmPassword"
+              type="password"
+              value={passwordData.confirmPassword}
+              onChange={handlePasswordChange}
+              fullWidth
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setChangePasswordDialog(false)}>Annuler</Button>
+          <Button onClick={handlePasswordSubmit} variant="contained">
+            Enregistrer
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

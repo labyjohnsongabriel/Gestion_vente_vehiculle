@@ -87,3 +87,23 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// Upload/update avatar
+exports.updateAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier envoyé" });
+    }
+    // Build full URL for avatar
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    const avatarUrl = `${req.protocol}://${req.get("host")}${avatarPath}`;
+    await db.query("UPDATE users SET avatar = ? WHERE id = ?", [
+      avatarUrl,
+      req.user.id,
+    ]);
+    res.json({ message: "Avatar mis à jour", avatar: avatarUrl });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};

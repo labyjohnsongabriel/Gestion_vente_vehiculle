@@ -14,7 +14,10 @@ const Commande = {
       const [rows] = await db.query(query);
       return rows;
     } catch (err) {
-      console.error("Erreur lors de la récupération des commandes :", err.message);
+      console.error(
+        "Erreur lors de la récupération des commandes :",
+        err.message
+      );
       throw err;
     }
   },
@@ -33,16 +36,27 @@ const Commande = {
       const [rows] = await db.query(query, [id]);
       return rows[0];
     } catch (err) {
-      console.error("Erreur lors de la récupération de la commande :", err.message);
+      console.error(
+        "Erreur lors de la récupération de la commande :",
+        err.message
+      );
       throw err;
     }
   },
 
   create: async (data) => {
     try {
-      const { client_id, user_id } = data;
-      const query = "INSERT INTO commandes (client_id, user_id) VALUES (?, ?)";
-      const [result] = await db.query(query, [client_id, user_id]);
+      const { client_id, user_id, montant, status } = data;
+      const query = `
+        INSERT INTO commandes (client_id, user_id, montant, status, created_at) 
+        VALUES (?, ?, ?, ?, NOW())
+      `;
+      const [result] = await db.query(query, [
+        client_id,
+        user_id,
+        montant,
+        status,
+      ]);
       return result.insertId;
     } catch (err) {
       console.error("Erreur lors de la création de la commande :", err.message);
@@ -52,12 +66,25 @@ const Commande = {
 
   update: async (id, data) => {
     try {
-      const { client_id, user_id } = data;
-      const query = "UPDATE commandes SET client_id = ?, user_id = ? WHERE id = ?";
-      const [result] = await db.query(query, [client_id, user_id, id]);
+      const { client_id, user_id, montant, status } = data;
+      const query = `
+        UPDATE commandes 
+        SET client_id = ?, user_id = ?, montant = ?, status = ? 
+        WHERE id = ?
+      `;
+      const [result] = await db.query(query, [
+        client_id,
+        user_id,
+        montant,
+        status,
+        id,
+      ]);
       return result.affectedRows;
     } catch (err) {
-      console.error("Erreur lors de la mise à jour de la commande :", err.message);
+      console.error(
+        "Erreur lors de la mise à jour de la commande :",
+        err.message
+      );
       throw err;
     }
   },
@@ -68,7 +95,10 @@ const Commande = {
       const [result] = await db.query(query, [id]);
       return result.affectedRows;
     } catch (err) {
-      console.error("Erreur lors de la suppression de la commande :", err.message);
+      console.error(
+        "Erreur lors de la suppression de la commande :",
+        err.message
+      );
       throw err;
     }
   },

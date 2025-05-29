@@ -103,23 +103,6 @@ const Facture = {
       console.error('Erreur lors de l\'envoi de la facture:', error);
       throw error;
     }
-  },
-
-  // Récupérer les lignes de commande associées à une commande (commande_ref)
-  getLignesCommande: async (commandeRef) => {
-    const [rows] = await db.query(
-      "SELECT description, quantite, prix_unitaire FROM lignes_commande WHERE commande_ref = ?",
-      [commandeRef]
-    );
-    return rows;
-  },
-
-  // Mettre à jour le statut PDF d'une facture (optionnel, selon votre table)
-  updatePdfStatus: async (factureId, status) => {
-    await db.query(
-      "UPDATE factures SET pdf_generated = ? WHERE id = ?",
-      [status ? 1 : 0, factureId]
-    );
   }
 };
 
