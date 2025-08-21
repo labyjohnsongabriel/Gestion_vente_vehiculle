@@ -24,13 +24,28 @@ const Client = {
   },
 
   // ➕ Créer un nouveau client
-  create: async ({ name, email, phone, address }) => {
+  create: async ({
+    name,
+    email,
+    phone,
+    address,
+    status = "active",
+    image = null,
+  }) => {
     try {
       const [result] = await db.query(
-        "INSERT INTO clients (name, email, phone, address) VALUES (?, ?, ?, ?)",
-        [name, email, phone, address]
+        "INSERT INTO clients (name, email, phone, address, status, image, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())",
+        [name, email, phone, address, status, image]
       );
-      return { id: result.insertId, name, email, phone, address };
+      return {
+        id: result.insertId,
+        name,
+        email,
+        phone,
+        address,
+        status,
+        image,
+      };
     } catch (err) {
       console.error("[Client.create] Erreur:", err.message);
       throw new Error("Erreur lors de la création du client");
@@ -38,11 +53,11 @@ const Client = {
   },
 
   // 🔁 Mettre à jour un client
-  update: async (id, { name, email, phone, address }) => {
+  update: async (id, { name, email, phone, address, status, image }) => {
     try {
       const [result] = await db.query(
-        "UPDATE clients SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?",
-        [name, email, phone, address, id]
+        "UPDATE clients SET name = ?, email = ?, phone = ?, address = ?, status = ?, image = ?, updatedAt = NOW() WHERE id = ?",
+        [name, email, phone, address, status, image, id]
       );
       return result;
     } catch (err) {

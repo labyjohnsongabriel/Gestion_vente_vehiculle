@@ -11,4 +11,7 @@ router.get("/", NotificationController.getAllNotifications); // Route to fetch a
 const notificationsRoutes = require("./routes/notifications");
 app.use("/api/notifications", notificationsRoutes);
 
+const ventesRoutes = require("../src/api/routes/ventes");
+app.use("/api/ventes", ventesRoutes);
+
 module.exports = app;

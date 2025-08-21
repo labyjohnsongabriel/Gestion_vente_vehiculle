@@ -3,6 +3,7 @@ const router = express.Router();
 const commandeController = require("../controllers/commandeController");
 const detailsController = require("../controllers/detailsCommandeController");
 const db = require("../config/db");
+const Commande = require("../models/commandeModel");
 
 
 router.get("/", commandeController.getAllCommandes);
@@ -10,8 +11,7 @@ router.get("/:id", commandeController.getCommandeById);
 router.post("/", commandeController.createCommande);
 router.put("/:id", commandeController.updateCommande);
 router.delete("/:id", commandeController.deleteCommande);
-
-// Routes pour les détails de commande
+router.get("/count/all", commandeController.getCommandesCount);
 router.get('/:commandeId/details', detailsController.getDetailsByCommandeId);
 
 // Update commande status
@@ -30,6 +30,15 @@ router.put("/:id/status", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Erreur serveur" });
+  }
+});
+
+router.get("/stats", async (req, res) => {
+  try {
+    const stats = await Commande.getStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: "Erreur lors du calcul des statistiques" });
   }
 });
 

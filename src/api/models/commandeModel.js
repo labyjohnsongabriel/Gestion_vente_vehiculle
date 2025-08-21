@@ -1,5 +1,6 @@
 const db = require("../config/db");
 
+// Toutes les méthodes CRUD + getStats pour les ventes/statistiques
 const Commande = {
   getAll: async () => {
     try {
@@ -18,6 +19,17 @@ const Commande = {
         "Erreur lors de la récupération des commandes :",
         err.message
       );
+      throw err;
+    }
+  },
+  // Ajoutez cette méthode dans votre objet Commande (dans commandeModel.js)
+  count: async () => {
+    try {
+      const query = "SELECT COUNT(*) AS count FROM commandes";
+      const [rows] = await db.query(query);
+      return rows[0].count;
+    } catch (err) {
+      console.error("Erreur lors du comptage des commandes :", err.message);
       throw err;
     }
   },
@@ -99,6 +111,27 @@ const Commande = {
         "Erreur lors de la suppression de la commande :",
         err.message
       );
+      throw err;
+    }
+  },
+
+  getStats: async () => {
+    try {
+      const query = `
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN status = 'en_preparation' THEN 1 ELSE 0 END) AS en_preparation,
+          SUM(CASE WHEN status = 'valide' THEN 1 ELSE 0 END) AS valide,
+          SUM(CASE WHEN status = 'livre' THEN 1 ELSE 0 END) AS livre,
+          SUM(CASE WHEN status = 'annule' THEN 1 ELSE 0 END) AS annule,
+          SUM(montant) AS montant_total,
+          SUM(CASE WHEN status = 'livre' THEN montant ELSE 0 END) AS montant_livre
+        FROM commandes
+      `;
+      const [rows] = await db.query(query);
+      return rows[0];
+    } catch (err) {
+      console.error("Erreur lors du calcul des statistiques :", err.message);
       throw err;
     }
   },

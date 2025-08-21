@@ -1,4 +1,5 @@
 import axios from "axios";
+
 const API_URL = "http://localhost:5000/api/clients";
 
 const getAuthHeaders = () => ({
@@ -29,6 +30,7 @@ export const createClient = async (clientData) => {
 
 export const updateClient = async (id, clientData) => {
   try {
+    // clientData doit être un objet simple (pas FormData)
     const response = await axios.put(
       `${API_URL}/${id}`,
       clientData,
@@ -61,5 +63,28 @@ export const fetchClientCount = async () => {
       err.message
     );
     throw err;
+  }
+};
+
+export const uploadClientImage = async (id, imageFile) => {
+  try {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+
+    const response = await axios.post(
+      `${API_URL}/${id}/upload-image`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Erreur lors de l’upload de l’image du client :", error);
+    throw error;
   }
 };

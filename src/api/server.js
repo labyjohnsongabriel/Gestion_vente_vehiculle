@@ -20,10 +20,11 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+// Sert les fichiers statiques du dossier uploads à la racine du projet
+app.use("/uploads", express.static(path.join(__dirname, "../../uploads")));
 
-// Ensure avatars upload directory exists
-const avatarsDir = path.join(__dirname, "public/uploads/avatars");
+// Ensure avatars upload directory exists à la racine du projet
+const avatarsDir = path.join(__dirname, "../../uploads/avatars");
 if (!fs.existsSync(avatarsDir)) {
   fs.mkdirSync(avatarsDir, { recursive: true });
 }
@@ -58,6 +59,7 @@ app.use("/api/profile", require("./routes/profileRoutes"));
 app.use("/api/user/settings", require("./routes/userSettingsRoutes"));
 app.use("/api/notifications", require("./routes/notificationsRoutes"));
 
+app.use("/api/ventes", require("./routes/ventes"));
 // Route d'accueil
 app.get("/", (req, res) => {
   res.send("🚀 API de gestion de pièces de véhicules en ligne !");

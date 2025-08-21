@@ -30,6 +30,11 @@ import {
   DialogContent,
   DialogActions,
   DialogContentText,
+  Card,
+  CardContent,
+  Grid,
+  Alert,
+  Snackbar,
 } from "@mui/material";
 import {
   Edit,
@@ -44,16 +49,21 @@ import {
   ArrowUpward,
   ArrowDownward,
   Equalizer,
+  ShoppingCart,
+  Notifications,
+  Close,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import StockForm from "./StockForm";
 import StockHistory from "./StockHistory";
 import StockTrends from "./StockTrends";
+import SaleForm from "./SaleForm";
 import axios from "axios";
 import { useAuth } from "../../components/context/AuthContext";
 
 const API_URL = "http://localhost:5000/api";
+const AUTH_API_URL = "http://localhost:5000/api/auth/me";
 
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
@@ -69,6 +79,7 @@ const PremiumTableRow = styled(TableRow)(({ theme }) => ({
 
 const StockList = () => {
   const { user } = useAuth();
+  const userRole = user?.role || "user";
   const [stocks, setStocks] = useState([]);
   const [pieces, setPieces] = useState([]);
   const [openForm, setOpenForm] = useState(false);
@@ -82,16 +93,28 @@ const StockList = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [openHistory, setOpenHistory] = useState(false);
   const [openTrends, setOpenTrends] = useState(false);
+  const [openSale, setOpenSale] = useState(false);
   const [selectedStockId, setSelectedStockId] = useState(null);
   const [stockHistory, setStockHistory] = useState([]);
   const [stockTrends, setStockTrends] = useState([]);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState("info");
+
   const [currentAdjustment, setCurrentAdjustment] = useState({
     stockId: null,
     change: 0,
     reason: "",
     currentQuantity: 0,
   });
+
+  const showSnackbar = (message, severity = "info") => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
   const fetchStocks = async () => {
     try {
@@ -118,11 +141,13 @@ const StockList = () => {
           quantity: stock.quantity,
           min_quantity: stock.min_quantity || 5,
           last_updated: stock.updated_at,
+          price: piece.price || 0,
         };
       });
 
       setStocks(validatedStocks);
       setPieces(piecesArray);
+      checkLowStocks(validatedStocks);
     } catch (error) {
       console.error("Error loading data:", error);
       Swal.fire("Error", "Failed to load data", "error");
@@ -132,41 +157,68 @@ const StockList = () => {
     }
   };
 
-  const fetchStockHistory = async (stockId) => {
-    if (!stockId) {
-      console.error("Stock ID manquant pour fetchStockHistory");
-      Swal.fire("Erreur", "ID du stock manquant pour l'historique", "warning");
-      return;
-    }
+  const checkLowStocks = (stocksData) => {
+    const lowStocks = stocksData.filter(
+      (stock) => stock.quantity <= stock.min_quantity
+    );
+    setLowStockAlerts(lowStocks);
 
+    // Envoyer des notifications pour les stocks très bas
+    const criticalStocks = lowStocks.filter((stock) => stock.quantity === 0);
+    if (criticalStocks.length > 0) {
+      showSnackbar(`⚠️ ${criticalStocks.length} stock(s) en rupture!`, "error");
+    } else if (lowStocks.length > 0) {
+      showSnackbar(`⚠️ ${lowStocks.length} stock(s) faible(s)!`, "warning");
+    }
+  };
+
+  const fetchStockHistory = async (stockId) => {
     try {
       const response = await axios.get(`${API_URL}/stocks/${stockId}/history`);
       setStockHistory(response.data || []);
     } catch (error) {
-      console.error("Erreur lors du chargement de l'historique :", error);
-      Swal.fire("Erreur", "Échec du chargement de l'historique", "error");
+      console.error("Erreur historique:", error);
     }
   };
 
   const fetchStockTrends = async (id) => {
-    if (!id) {
-      console.error("Stock ID manquant pour fetchStockTrends");
-      Swal.fire("Erreur", "ID du stock manquant pour les tendances", "warning");
-      return;
-    }
-
     try {
       const response = await axios.get(`${API_URL}/stocks/${id}/trends`);
       setStockTrends(response.data || []);
     } catch (error) {
-      console.error("Erreur lors du chargement des tendances :", error);
-      Swal.fire("Erreur", "Échec du chargement des tendances", "error");
+      console.error("Erreur tendances:", error);
     }
   };
 
   useEffect(() => {
     fetchStocks();
+
+    // Vérifier les stocks toutes les 5 minutes
+    const interval = setInterval(fetchStocks, 300000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleSale = async (saleData) => {
+    try {
+      const response = await axios.post(`${API_URL}/sales`, saleData);
+
+      // Mettre à jour le stock localement
+      setStocks((prevStocks) =>
+        prevStocks.map((stock) =>
+          stock.id === saleData.stock_id
+            ? { ...stock, quantity: stock.quantity - saleData.quantity }
+            : stock
+        )
+      );
+
+      showSnackbar("Vente enregistrée avec succès!", "success");
+      return response.data;
+    } catch (error) {
+      console.error("Erreur vente:", error);
+      showSnackbar("Erreur lors de la vente", "error");
+      throw error;
+    }
+  };
 
   const handleAdjustClick = (stockId, change, currentQuantity) => {
     setCurrentAdjustment({
@@ -189,32 +241,32 @@ const StockList = () => {
       );
       await fetchStocks();
       setAdjustmentDialogOpen(false);
-      Swal.fire("Success", "Stock adjusted successfully", "success");
+      showSnackbar("Stock ajusté avec succès", "success");
     } catch (error) {
-      console.error("Adjustment error:", error);
-      Swal.fire("Error", "Failed to adjust stock", "error");
+      console.error("Erreur ajustement:", error);
+      showSnackbar("Erreur lors de l'ajustement", "error");
     }
   };
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({
-      title: "Confirm deletion",
-      text: "Are you sure you want to delete this stock?",
+      title: "Confirmer la suppression",
+      text: "Êtes-vous sûr de vouloir supprimer ce stock?",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ff4444",
       cancelButtonColor: "#9e9e9e",
-      confirmButtonText: "Yes, delete",
+      confirmButtonText: "Oui, supprimer",
     });
 
     if (result.isConfirmed) {
       try {
         await axios.delete(`${API_URL}/stocks/${id}`);
         await fetchStocks();
-        Swal.fire("Deleted!", "Stock has been deleted.", "success");
+        showSnackbar("Stock supprimé avec succès", "success");
       } catch (error) {
-        console.error("Deletion error:", error);
-        Swal.fire("Error", "Deletion failed", "error");
+        console.error("Erreur suppression:", error);
+        showSnackbar("Erreur lors de la suppression", "error");
       }
     }
   };
@@ -240,10 +292,35 @@ const StockList = () => {
     (s) => s.quantity <= s.min_quantity && s.quantity > 0
   ).length;
   const outOfStockCount = stocks.filter((s) => s.quantity <= 0).length;
+  const totalValue = stocks.reduce(
+    (sum, stock) => sum + stock.quantity * stock.price,
+    0
+  );
 
   return (
     <Fade in timeout={600}>
       <Box sx={{ p: 3 }}>
+        {/* Alertes Stock Faible */}
+        {lowStockAlerts.length > 0 && (
+          <Alert
+            severity={
+              lowStockAlerts.some((s) => s.quantity === 0) ? "error" : "warning"
+            }
+            sx={{ mb: 2 }}
+            action={
+              <IconButton size="small" onClick={() => setLowStockAlerts([])}>
+                <Close fontSize="small" />
+              </IconButton>
+            }
+          >
+            {lowStockAlerts.some((s) => s.quantity === 0)
+              ? `🚨 ${
+                  lowStockAlerts.filter((s) => s.quantity === 0).length
+                } rupture(s) de stock!`
+              : `⚠️ ${lowStockAlerts.length} stock(s) faible(s)!`}
+          </Alert>
+        )}
+
         <Paper sx={{ borderRadius: 4, overflow: "hidden", boxShadow: 3 }}>
           {/* Header */}
           <Box
@@ -259,9 +336,15 @@ const StockList = () => {
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Inventory sx={{ fontSize: 40 }} />
-              <Typography variant="h4" fontWeight={700}>
-                Gestion de stock
-              </Typography>
+              <Box>
+                <Typography variant="h4" fontWeight={700}>
+                  Gestion de stock
+                </Typography>
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
+              </Box>
             </Box>
 
             <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
@@ -420,6 +503,12 @@ const StockList = () => {
                     Quantité
                   </TableCell>
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Prix
+                  </TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                    Valeur
+                  </TableCell>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
                   </TableCell>
                   {user?.role === "admin" && (
@@ -445,6 +534,12 @@ const StockList = () => {
                       <TableCell>
                         <Skeleton animation="wave" />
                       </TableCell>
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton animation="wave" />
+                      </TableCell>
                       {user?.role === "admin" && (
                         <TableCell>
                           <Skeleton animation="wave" />
@@ -455,7 +550,7 @@ const StockList = () => {
                 ) : filteredStocks.length === 0 ? (
                   <PremiumTableRow>
                     <TableCell
-                      colSpan={user?.role === "admin" ? 5 : 4}
+                      colSpan={user?.role === "admin" ? 7 : 6}
                       align="center"
                       sx={{ py: 6 }}
                     >
@@ -529,6 +624,16 @@ const StockList = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
+                          <Typography>
+                            {Number(stock?.price ?? 0).toFixed(2)} €
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography fontWeight={600}>
+                            {(stock.quantity * stock.price).toFixed(2)} €
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
                           <Chip
                             label={
                               stock.quantity <= 0
@@ -554,6 +659,19 @@ const StockList = () => {
                         {user?.role === "admin" && (
                           <TableCell>
                             <Box sx={{ display: "flex", gap: 1 }}>
+                   {  /*         <Tooltip title="Vendre">
+                                <IconButton
+                                  onClick={() => {
+                                    setSelectedStockId(stock.id);
+                                    setOpenSale(true);
+                                  }}
+                                  size="small"
+                                  color="primary"
+                                  disabled={stock.quantity <= 0}
+                                >
+                                  <ShoppingCart fontSize="small" />
+                                </IconButton>
+                              </Tooltip>*/}
                               <Tooltip title="Historique">
                                 <IconButton
                                   onClick={async () => {
@@ -655,30 +773,6 @@ const StockList = () => {
           />
         </Paper>
 
-        {/* Mobile Add Button */}
-        {user?.role === "admin" && (
-          <Box sx={{ position: "fixed", bottom: 24, right: 24 }}>
-            <Tooltip title="Ajouter un stock">
-              <Button
-                variant="contained"
-                onClick={() => {
-                  setStockToEdit(null);
-                  setOpenForm(true);
-                }}
-                sx={{
-                  borderRadius: "50%",
-                  width: 60,
-                  height: 60,
-                  minWidth: 0,
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                }}
-              >
-                <Add />
-              </Button>
-            </Tooltip>
-          </Box>
-        )}
 
         {/* Adjustment Dialog */}
         <Dialog
@@ -740,6 +834,16 @@ const StockList = () => {
           pieces={pieces}
         />
 
+        {/* Formulaire Vente */}
+        <SaleForm
+          open={openSale}
+          onClose={() => setOpenSale(false)}
+          stockId={selectedStockId}
+          stocks={stocks}
+          onSale={handleSale}
+          refreshStocks={fetchStocks}
+        />
+
         {/* Stock History */}
         <StockHistory
           open={openHistory}
@@ -755,6 +859,22 @@ const StockList = () => {
           trends={stockTrends}
           stockId={selectedStockId}
         />
+
+        {/* Snackbar pour notifications */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={6000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <Alert
+            onClose={() => setSnackbarOpen(false)}
+            severity={snackbarSeverity}
+            sx={{ width: "100%" }}
+          >
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
       </Box>
     </Fade>
   );

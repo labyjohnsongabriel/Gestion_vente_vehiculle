@@ -35,11 +35,13 @@ import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import CategoryForm from "./CategoryForm";
 import { useNavigate } from "react-router-dom"; // Ajout de l'import manquant
+import { useAuth } from "../../components/context/AuthContext";
 
 import axios from "../../api/axios"; // Assurez-vous que le chemin est correct
 import "../../styles/Categorie.css";
 
 const API_URL = "http://localhost:5000/api/categories";
+const AUTH_API_URL = "http://localhost:5000/api/auth/me";
 
 // Fonction d'aide pour récupérer le token depuis le localStorage
 const getAuthToken = () => {
@@ -107,6 +109,8 @@ const CategoryList = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tokenError, setTokenError] = useState(false);
   const navigate = useNavigate(); // Hook pour la navigation
+  const { user } = useAuth();
+  const userRole = user?.role || "user"; // "admin" ou "user" selon votre logique
 
   // Configuration des intercepteurs axios
   useEffect(() => {
@@ -268,6 +272,28 @@ const CategoryList = () => {
     });
   };
 
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.get(AUTH_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserRole(response.data.role);
+      setUserId(response.data.id);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération des infos utilisateur:",
+        error
+      );
+      navigate("/login");
+    }
+  };
+
   const handleAddCategory = () => {
     const token = getAuthToken();
     if (!token) {
@@ -370,6 +396,10 @@ const CategoryList = () => {
                 }}
               >
                 Gestion des Catégories
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
               </Typography>
             </Box>
 
@@ -609,7 +639,7 @@ const CategoryList = () => {
                               {category.description}
                             </Typography>
                           </TableCell>
-{          /*                <TableCell
+                          {/*                <TableCell
                             sx={{
                               color: "#3a4b6d",
                             }}
@@ -620,7 +650,8 @@ const CategoryList = () => {
                               ).toLocaleDateString()}
                             </Typography>
                           </TableCell>
- */}                         <TableCell align="right">
+ */}{" "}
+                          <TableCell align="right">
                             <Box
                               sx={{
                                 display: "flex",

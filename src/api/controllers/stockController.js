@@ -57,6 +57,26 @@ exports.getStockHistory = async (req, res) => {
   }
 };
 
+// Récupérer tout l'historique d'un stock (pour affichage complet dans les tendances)
+exports.getFullStockHistory = async (req, res) => {
+  try {
+    const stockId = req.params.id;
+    if (!stockId || isNaN(Number(stockId))) {
+      return res.status(400).json({ error: "ID de stock invalide." });
+    }
+    const [rows] = await db.query(
+      "SELECT * FROM stock_history WHERE stock_id = ? ORDER BY created_at ASC",
+      [stockId]
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("[getFullStockHistory] Erreur:", err.message);
+    res.status(500).json({
+      error: "Erreur lors de la récupération de l'historique complet du stock.",
+    });
+  }
+};
+
 // Get stock trends (MySQL version)
 exports.getStockTrends = async (req, res) => {
   try {

@@ -5,11 +5,18 @@ const path = require("path");
 // ✅ Obtenir toutes les pièces
 exports.getAllPieces = async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM pieces");
+    const [rows] = await db.query(
+      `SELECT p.*, 
+              f.nom AS fournisseur, 
+              c.name AS categorie
+         FROM pieces p
+    LEFT JOIN fournisseurs f ON p.fournisseur_id = f.id
+    LEFT JOIN categories c ON p.category_id = c.id`
+    );
     res.status(200).json({
       status: "success",
       results: rows.length,
-      data: rows, // ✅ Renvoie un tableau directement dans `data`
+      data: rows,
     });
   } catch (err) {
     console.error("[getAllPieces] Erreur:", err.message);
@@ -42,13 +49,16 @@ exports.getPiece = async (req, res) => {
 // ✅ Créer une nouvelle pièce
 exports.createPiece = async (req, res) => {
   try {
+    if (!req.body) {
+      return res.status(400).json({ error: "Requête invalide : corps manquant" });
+    }
     const { name, reference, description, price, stock_quantity, category_id, fournisseur_id } =
       req.body;
     const image = req.file ? `/uploads/pieces/${req.file.filename}` : null;
 
     const [result] = await db.query(
       "INSERT INTO pieces (name, reference, description, price , stock_quantity, image, category_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [name, reference, description, price, stock_quantity,  image, category_id, fournisseur_id]
+      [name, reference, description, price, stock_quantity, image, category_id, fournisseur_id]
     );
 
     res.status(201).json({
@@ -74,6 +84,9 @@ exports.createPiece = async (req, res) => {
 // ✅ Mettre à jour une pièce
 exports.updatePiece = async (req, res) => {
   try {
+    if (!req.body) {
+      return res.status(400).json({ error: "Requête invalide : corps manquant" });
+    }
     const { name, reference, description, price,stock_quantity, category_id, fournisseur_id } =
       req.body;
     let image = null;

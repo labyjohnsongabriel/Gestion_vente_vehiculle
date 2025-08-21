@@ -138,41 +138,64 @@ const validateForm = () => {
 
     setIsSubmitting(true);
 
-    try {
-      const token = localStorage.getItem("token");
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-      };
+try {
+  const token = localStorage.getItem("token");
+  const config = {
+    headers: { Authorization: `Bearer ${token}` },
+  };
 
-      const payload = {
-        commande_id: formData.commande_id,
-        total: parseFloat(formData.total),
-      };
+  const payload = {
+    commande_id: formData.commande_id,
+    total: parseFloat(formData.total),
+  };
+
+  let response;
+
   if (factureToEdit && factureToEdit.id) {
     // Mise à jour d'une facture existante
-    await axios.put(`${API_URL}/${factureToEdit.id}`, payload, config); // API_URL doit être '/api/factures'
-    Swal.fire("Succès", "Facture mise à jour avec succès", "success");
+    response = await axios.put(`${API_URL}/${factureToEdit.id}`, payload, config);
+    Swal.fire({
+      icon: "success",
+      title: "Succès",
+      text: "Facture mise à jour avec succès",
+    });
   } else {
     // Création d'une nouvelle facture
-    await axios.post(API_URL, payload, config);
-    Swal.fire("Succès", "Facture créée avec succès", "success");
+    response = await axios.post(API_URL, payload, config);
+    Swal.fire({
+      icon: "success",
+      title: "Succès",
+      text: "Facture créée avec succès",
+    });
   }
 
-      setIsSuccess(true);
-      setTimeout(() => {
-        refreshFactures();
-        onClose();
-      }, 1500);
-    } catch (error) {
-      console.error("Erreur lors de l'envoi des données :", error);
-      Swal.fire(
-        "Erreur",
-        error.response?.data?.message || "Une erreur est survenue",
-        "error"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Mise à jour locale et fermeture du formulaire
+  setIsSuccess(true);
+  setTimeout(() => {
+    refreshFactures(); // Actualiser la liste des factures
+    onClose();         // Fermer le formulaire
+  }, 1500);
+
+} catch (error) {
+  console.error("Erreur lors de l'envoi des données :", error);
+
+  // Message d'erreur plus précis
+  const message =
+    error.response?.data?.message ||
+    error.message ||
+    "Une erreur est survenue lors de l'enregistrement";
+
+  Swal.fire({
+    icon: "error",
+    title: "Erreur",
+    text: message,
+  });
+} finally {
+  setIsSubmitting(false);
+}
+
+
+
   };
 
   const renderCommandeOption = (props, option) => {

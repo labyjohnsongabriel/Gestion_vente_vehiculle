@@ -123,7 +123,6 @@ exports.createFacture = async (req, res) => {
   }
 };
 
-
 /**
  * Supprime une facture par son ID
  *
@@ -152,14 +151,6 @@ exports.deleteFacture = async (req, res) => {
     });
   }
 };
-
-/**
- * Met à jour une facture existante
- *
- * @param {object} req - Requête Express avec l'ID de la facture en paramètre et les données à mettre à jour dans le corps
- * @param {object} res - Réponse Express
- * @returns {object} JSON contenant un message de succès ou d'erreur
- */
 exports.updateFacture = async (req, res) => {
   try {
     const factureId = req.params.id;
@@ -167,13 +158,15 @@ exports.updateFacture = async (req, res) => {
       return res.status(400).json({ message: "ID de facture manquant" });
     }
 
-    // Vérifier que la facture existe
-    const existingFacture = await Facture.getById(factureId);
+    // Use the correct method from your model (e.g., getById, findById, etc.)
+    const existingFacture = await Facture.getById(factureId); // or findById, findOne, etc.
     if (!existingFacture) {
       return res.status(404).json({ message: "Facture non trouvée" });
     }
 
-    const updated = await Facture.update(factureId, req.body);
+    // Use the correct update method from your model
+    const updated = await Facture.update(factureId, req.body); // or update, modify, etc.
+
     res.json({
       message: "Facture mise à jour avec succès",
       updated: updated,
@@ -187,13 +180,7 @@ exports.updateFacture = async (req, res) => {
   }
 };
 
-/**
- * Génère et télécharge un PDF de facture
- *
- * @param {object} req - Requête Express avec l'ID de la facture en paramètre
- * @param {object} res - Réponse Express
- * @returns {file} Fichier PDF de la facture ou message d'erreur
- */
+
 exports.generatePDF = async (req, res) => {
   let filePath = null;
 
@@ -237,26 +224,28 @@ exports.generatePDF = async (req, res) => {
     doc.end();
 
     stream.on("finish", () => {
-      res.download(filePath, fileName, (err) => {
-        if (err) {
-          console.error("Erreur lors de l'envoi du PDF:", err);
-          if (!res.headersSent) {
-            res.status(500).json({ message: "Erreur lors de l'envoi du PDF" });
-          }
-        }
-
-        // Nettoyer le fichier temporaire après un délai
-        setTimeout(() => {
-          fs.unlink(filePath, (err) => {
-            if (err && err.code !== "ENOENT") {
-              console.error(
-                "Erreur lors de la suppression du fichier temporaire:",
-                err
-              );
+      // Vérifier si la requête est encore active avant d'envoyer le fichier
+      if (!res.headersSent && !res.writableEnded) {
+        res.download(filePath, fileName, (err) => {
+          if (err) {
+            console.error("Erreur lors de l'envoi du PDF:", err);
+            if (!res.headersSent && !res.writableEnded) {
+              res.status(500).json({ message: "Erreur lors de l'envoi du PDF" });
             }
-          });
-        }, 5000);
-      });
+          }
+          // Nettoyer le fichier temporaire après un délai
+          setTimeout(() => {
+            fs.unlink(filePath, (err) => {
+              if (err && err.code !== "ENOENT") {
+                console.error(
+                  "Erreur lors de la suppression du fichier temporaire:",
+                  err
+                );
+              }
+            });
+          }, 5000);
+        });
+      }
     });
 
     stream.on("error", (err) => {

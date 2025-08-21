@@ -35,7 +35,8 @@ import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import VehiculeForm from "./VehiculeForm";
 import axios from "axios";
-import { useNavigate } from "react-router-dom"; // Ajout de import useNavigate
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../components/context/AuthContext";
 
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
@@ -63,7 +64,9 @@ const VehiculeList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [authError, setAuthError] = useState(false);
-  const navigate = useNavigate(); // Ajout de useNavigate
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const userRole = user?.role || "user";
 
   // Création d'une instance axios avec token d'authentification
   const axiosWithAuth = axios.create();
@@ -97,7 +100,7 @@ const VehiculeList = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    navigate("/login"); // Changé de "/" à "/login" pour être cohérent
+    navigate("/login");
     Swal.fire("Session expirée", "Veuillez vous reconnecter", "info");
   };
 
@@ -122,7 +125,7 @@ const VehiculeList = () => {
             confirmButtonText: "Se connecter",
           }).then((result) => {
             if (result.isConfirmed) {
-              navigate("/login"); // Utilisez navigate au lieu de window.location
+              navigate("/login");
             }
           });
         } else if (error.response.status === 403) {
@@ -263,7 +266,7 @@ const VehiculeList = () => {
           </Typography>
           <Button
             variant="contained"
-            onClick={() => navigate("/login")} // Utiliser navigate au lieu de manipuler directement window.location
+            onClick={() => navigate("/login")}
           >
             Se connecter
           </Button>
@@ -300,6 +303,10 @@ const VehiculeList = () => {
               <DirectionsCar sx={{ fontSize: 40 }} />
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 Gestion des Véhicules
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
               </Typography>
             </Box>
 

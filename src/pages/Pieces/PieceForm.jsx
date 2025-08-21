@@ -64,6 +64,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     fournisseur_id: "",
   });
 
+  const [image, setImage] = useState(pieceToEdit?.image || "");
   const [categories, setCategories] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [errors, setErrors] = useState({});
@@ -72,10 +73,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
 
-  // Fonction améliorée pour charger les données initiales
   const fetchInitialData = async () => {
     setLoadingData(true);
     setDataError(null);
@@ -86,7 +84,6 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         axios.get(FOURNISSEURS_URL),
       ]);
 
-      // Vérification et extraction robustes
       const categoriesData = categoriesRes.data;
       const fournisseursData = fournisseursRes.data;
 
@@ -102,11 +99,9 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         ? fournisseursData.fournisseurs
         : [];
 
-      // Enregistrement des données
       setCategories(normalizedCategories);
       setFournisseurs(normalizedFournisseurs);
 
-      // Vérification utile
       if (normalizedFournisseurs.length === 0) {
         console.warn(
           "⚠ Aucun fournisseur récupéré. Vérifiez le format ou le contenu de l'API :",
@@ -121,7 +116,6 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
   };
 
-  // Fonction de réessai améliorée
   const fetchWithRetry = async () => {
     try {
       await fetchInitialData();
@@ -144,7 +138,6 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
   }, [open]);
 
-  // Initialisation du formulaire
   useEffect(() => {
     if (pieceToEdit) {
       setFormData({
@@ -157,6 +150,7 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         category_id: pieceToEdit.category_id || "",
         fournisseur_id: pieceToEdit.fournisseur_id || "",
       });
+      setImage(pieceToEdit.image || "");
     } else {
       setFormData({
         name: "",
@@ -168,10 +162,10 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
         category_id: "",
         fournisseur_id: "",
       });
+      setImage("");
     }
     setErrors({});
     setIsSuccess(false);
-    setUploadProgress(0);
   }, [pieceToEdit, open]);
 
   const handleChange = (name, value) => {
@@ -179,7 +173,12 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  // Validation améliorée du formulaire
+  const handleImageChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setImage(e.target.files[0]);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -201,7 +200,6 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
 
     if (!formData.category_id) newErrors.category_id = "Catégorie requise";
 
-    // Validation optionnelle du fournisseur
     if (
       formData.fournisseur_id &&
       !fournisseurs.some((f) => f.id === formData.fournisseur_id)
@@ -213,29 +211,30 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Soumission du formulaire
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        ...formData,
-        price: parseFloat(formData.price),
-        stock_quantity: parseInt(formData.stock_quantity),
-        // Assurez-vous que les IDs sont des nombres si nécessaire
-        category_id: Number(formData.category_id),
-        fournisseur_id: formData.fournisseur_id
-          ? Number(formData.fournisseur_id)
-          : null,
-      };
+      const formDataPayload = new FormData();
+      formDataPayload.append("name", formData.name);
+      formDataPayload.append("reference", formData.reference);
+      formDataPayload.append("description", formData.description);
+      formDataPayload.append("price", formData.price);
+      formDataPayload.append("stock_quantity", formData.stock_quantity);
+      formDataPayload.append("category_id", formData.category_id);
+      formDataPayload.append("fournisseur_id", formData.fournisseur_id);
+      if (image && typeof image !== "string") {
+        formDataPayload.append("image", image);
+      }
 
       if (pieceToEdit) {
-        await axios.put(`${API_URL}/${pieceToEdit.id}`, payload);
+        await axios.put(`${API_URL}/${pieceToEdit.id}`, formDataPayload);
         Swal.fire("Succès", "Pièce mise à jour avec succès", "success");
       } else {
-        await axios.post(API_URL, payload);
+        await axios.post(API_URL, formDataPayload);
         Swal.fire("Succès", "Pièce créée avec succès", "success");
       }
 
@@ -262,77 +261,12 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
     }
   };
 
-  // Upload d'image avec progression
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Vérifications du fichier
-    if (file.size > 5 * 1024 * 1024) {
-      Swal.fire("Erreur", "L'image ne doit pas dépasser 5MB", "error");
-      return;
-    }
-
-    const validTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (!validTypes.includes(file.type)) {
-      Swal.fire(
-        "Erreur",
-        "Type de fichier non supporté (JPEG, PNG, WebP seulement)",
-        "error"
-      );
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-
-      const response = await axios.post(UPLOAD_URL, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          setUploadProgress(percentCompleted);
-        },
-      });
-
-      // Correction ici : construire une URL absolue si besoin
-      let imageUrl = response.data && response.data.url;
-      if (imageUrl && imageUrl.startsWith("/uploads")) {
-        imageUrl = `http://localhost:5000${imageUrl}`;
-      }
-      if (!imageUrl) {
-        throw new Error("URL d'image manquante dans la réponse");
-      }
-
-      handleChange("image", imageUrl);
-      Swal.fire("Succès", "Image uploadée avec succès", "success");
-    } catch (error) {
-      console.error("Erreur upload image:", error);
-      Swal.fire(
-        "Erreur",
-        `Échec de l'upload de l'image: ${error.message}`,
-        "error"
-      );
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
   const handleRetry = () => {
     setDataError(null);
     setRetryCount(0);
     fetchWithRetry();
   };
 
-  // Trouver les objets complets pour les valeurs sélectionnées
   const selectedCategory = categories.find(
     (cat) => cat.id === formData.category_id
   );
@@ -633,12 +567,12 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <Avatar
                         src={
-                          formData.image
-                            ? formData.image.startsWith("http")
-                              ? formData.image
-                              : formData.image.startsWith("/uploads")
-                              ? `http://localhost:5000${formData.image}`
-                              : "/default-part.png"
+                          image
+                            ? typeof image === "string"
+                              ? image.startsWith("http")
+                                ? image
+                                : `http://localhost:5000${image}`
+                              : URL.createObjectURL(image)
                             : "/default-part.png"
                         }
                         sx={{ width: 80, height: 80 }}
@@ -648,29 +582,18 @@ const PieceForm = ({ open, onClose, refreshPieces, pieceToEdit }) => {
                         <Button
                           variant="contained"
                           component="label"
-                          disabled={isSubmitting || isUploading}
+                          disabled={isSubmitting}
                           startIcon={<CloudUpload />}
                           fullWidth
                         >
-                          Uploader Image
+                          Choisir une image
                           <input
                             type="file"
                             hidden
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handleImageUpload}
+                            accept="image/*"
+                            onChange={handleImageChange}
                           />
                         </Button>
-                        {isUploading && (
-                          <Box sx={{ mt: 1 }}>
-                            <LinearProgress
-                              variant="determinate"
-                              value={uploadProgress}
-                            />
-                            <Typography variant="caption">
-                              {uploadProgress}% complété
-                            </Typography>
-                          </Box>
-                        )}
                       </Box>
                     </Box>
                   </Grid>

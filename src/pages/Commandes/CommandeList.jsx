@@ -64,6 +64,9 @@ import CommandeForm from "./CommandeForm";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+
+const STATS_API_URL = "http://localhost:5000/api/commandes/stats";
+
 // Style personnalisé
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
@@ -239,6 +242,18 @@ const CommandeList = () => {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(STATS_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCommandeStats(response.data);
+    } catch (error) {
+      console.error("Erreur lors du chargement des statistiques:", error);
+    }
+  };
+
   const calculateStats = (commandesData) => {
     const stats = {
       total: commandesData.length,
@@ -355,6 +370,12 @@ const CommandeList = () => {
     }
   }, [userId, userRole]);
 
+  useEffect(() => {
+    if (userRole === "admin") {
+      fetchStats();
+    }
+  }, [userRole]);
+
   const handleEdit = (commande) => {
     if (userRole !== "admin" && commande.user_id !== userId) {
       Swal.fire(
@@ -465,7 +486,7 @@ const CommandeList = () => {
   return (
     <Fade in timeout={600}>
       <Box sx={{ p: { xs: 1, sm: 3 } }}>
-        {/* Statistiques en haut (seulement pour admin) */}
+{/*
         {userRole === "admin" && (
           <Box sx={{ mb: 3 }}>
             <Grid container spacing={2}>
@@ -514,8 +535,8 @@ const CommandeList = () => {
               </Grid>
             </Grid>
           </Box>
-        )}
-
+      )}
+*/}  
         <Paper
           sx={{
             borderRadius: 4,
@@ -549,6 +570,10 @@ const CommandeList = () => {
                 }}
               >
                 Gestion des Commandes
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
               </Typography>
             </Box>
 
@@ -637,7 +662,7 @@ const CommandeList = () => {
                 </IconButton>
               </Tooltip>
 
-              {userRole === "admin" && (
+          { /*   {userRole === "admin" && (
                 <Tooltip title="Statistiques" arrow>
                   <IconButton
                     onClick={() => setStatsOpen(true)}
@@ -646,7 +671,7 @@ const CommandeList = () => {
                     <Analytics />
                   </IconButton>
                 </Tooltip>
-              )}
+              )}*/}
 
               {userRole === "admin" && (
                 <PremiumButton

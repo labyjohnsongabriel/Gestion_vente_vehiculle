@@ -36,8 +36,10 @@ import { styled } from "@mui/material/styles";
 import Swal from "sweetalert2";
 import FactureForm from "./FactureForm";
 import axios from "axios";
+import { useAuth } from "../../components/context/AuthContext";
 
 const API_URL = "http://localhost:5000/api/factures";
+const AUTH_API_URL = "http://localhost:5000/api/auth/me";
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
@@ -87,6 +89,8 @@ const FactureList = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { user } = useAuth();
+  const userRole = user?.role || "user"; // "admin" ou "user" selon votre logique
 
   const fetchFactures = async () => {
     try {
@@ -226,6 +230,27 @@ const FactureList = () => {
           filename = filenameMatch[1].replace(/['"]/g, "");
         }
       }
+      const fetchUserInfo = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) {
+            navigate("/login");
+            return;
+          }
+
+          const response = await axios.get(AUTH_API_URL, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setUserRole(response.data.role);
+          setUserId(response.data.id);
+        } catch (error) {
+          console.error(
+            "Erreur lors de la récupération des infos utilisateur:",
+            error
+          );
+          navigate("/login");
+        }
+      };
 
       // Création du lien et déclenchement du téléchargement
       const link = document.createElement("a");
@@ -355,6 +380,10 @@ const FactureList = () => {
                 }}
               >
                 Gestion des Factures
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
               </Typography>
             </Box>
 

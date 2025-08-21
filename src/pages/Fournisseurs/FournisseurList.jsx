@@ -38,6 +38,7 @@ import FournisseurForm from "./FournisseurForm";
 import axios from "axios";
 
 const API_URL = "http://localhost:5000/api/fournisseurs";
+const AUTH_API_URL = "http://localhost:5000/api/auth/me";
 
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
   "&:nth-of-type(odd)": {
@@ -77,7 +78,10 @@ const PremiumButton = styled(Button)(({ theme }) => ({
   transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
 }));
 
+const user = null; // ou utilisez votre contexte d'authentification si disponible
+
 const FournisseurList = () => {
+  const userRole = user?.role || "user"; // "admin" ou "user" selon votre logique
   const [fournisseurs, setFournisseurs] = useState([]);
   const [openForm, setOpenForm] = useState(false);
   const [fournisseurToEdit, setFournisseurToEdit] = useState(null);
@@ -112,6 +116,28 @@ const FournisseurList = () => {
     setFournisseurToEdit(fournisseur);
     setOpenForm(true);
   };
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const response = await axios.get(AUTH_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserRole(response.data.role);
+      setUserId(response.data.id);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération des infos utilisateur:",
+        error
+      );
+      navigate("/login");
+    }
+  };
+
 
   const handleDelete = async (id) => {
     Swal.fire({
@@ -233,6 +259,10 @@ const FournisseurList = () => {
                 }}
               >
                 Gestion des Fournisseurs
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
               </Typography>
             </Box>
 

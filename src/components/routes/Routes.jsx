@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-// Importe toutes tes pages ici
 import Dashboard from "../pages/Dashboard";
 import Statistic from "../pages/Statistic";
 import Reports from "../pages/Reports";
@@ -23,7 +22,7 @@ import Security from "../pages/Security";
 import Errors from "../pages/Errors";
 import Feedback from "../pages/Feedback";
 
-// Optionnel : une page NotFound si l'URL n'existe pas
+
 import NotFound from "../pages/NotFound";
 
 export const Routes = () => {

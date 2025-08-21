@@ -44,6 +44,32 @@ const Facture = {
     return result.affectedRows > 0;
   },
 
+  update: async (id, data) => {
+    const validFields = ["commande_id", "total"];
+    const fieldsToUpdate = {};
+
+    for (const field in data) {
+      if (validFields.includes(field)) {
+        fieldsToUpdate[field] = data[field];
+      }
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      throw new Error("Aucun champ valide à mettre à jour");
+    }
+
+    const setClause = Object.keys(fieldsToUpdate)
+      .map((field) => `${field} = ?`)
+      .join(", ");
+
+    const values = Object.values(fieldsToUpdate);
+    values.push(id);
+
+    const sql = `UPDATE factures SET ${setClause} WHERE id = ?`;
+    const [result] = await db.query(sql, values);
+    return result.affectedRows > 0;
+  },
+
   generatePDF: async (factureData) => {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument();
@@ -53,7 +79,6 @@ const Facture = {
 
       doc.pipe(writeStream);
 
-      // Exemple de contenu du PDF
       doc.fontSize(20).text("FACTURE", { align: "center" });
       doc.moveDown();
       doc.fontSize(12).text(`Numéro de facture: ${factureData.id}`);
@@ -73,37 +98,29 @@ const Facture = {
     });
   },
 
-  // Méthode pour envoyer une facture par email
   sendInvoiceByEmail: async (factureId, emailService) => {
     try {
-      // Récupérer les détails de la facture
       const factureData = await Facture.getById(factureId);
-      
-      // Générer le PDF
-      const { pdfPath } = await Facture.generatePDF(factureData);
-      
-      // Envoyer par email (nécessite un service d'email configuré)
+      const { path: pdfPath } = await Facture.generatePDF(factureData);
+
       await emailService.sendEmail({
         to: factureData.client_email,
-        subject: `Facture N° ${factureData.invoice_number}`,
-        text: 'Veuillez trouver ci-joint votre facture.',
+        subject: `Facture N° ${factureData.id}`,
+        text: "Veuillez trouver ci-joint votre facture.",
         attachments: [
           {
-            filename: `Facture_${factureData.invoice_number}.pdf`,
-            path: pdfPath
-          }
-        ]
+            filename: `Facture_${factureData.id}.pdf`,
+            path: pdfPath,
+          },
+        ],
       });
-
-      // Mettre à jour le statut de la facture
-      await Facture.updateStatus(factureId, 'sent');
 
       return true;
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la facture:', error);
+      console.error("Erreur lors de l'envoi de la facture:", error);
       throw error;
     }
-  }
+  },
 };
 
 module.exports = Facture;

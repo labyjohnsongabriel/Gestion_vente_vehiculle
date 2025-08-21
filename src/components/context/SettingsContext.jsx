@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "./AuthContext";
-//import { useSnackbar } from "./SnackbarContext";
+import { useSnackbar } from "notistack";
 import { useTranslation } from "react-i18next";
 
 const SettingsContext = createContext(undefined);
@@ -39,8 +39,8 @@ const defaultSettings = {
 
 export const SettingsProvider = ({ children }) => {
   const { user, token } = useAuth();
-  const { showSnackbar } = useSnackbar();
   const { i18n } = useTranslation();
+  const { showSnackbar } = useSnackbar();
   const [settings, setSettings] = useState(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,7 +52,8 @@ export const SettingsProvider = ({ children }) => {
       const response = await axios.get("/api/user/settings", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setSettings(response.data);
+      // Fusionne les settings reçus avec les defaults pour garantir tous les champs
+      setSettings({ ...defaultSettings, ...response.data });
     } catch (error) {
       console.error("Failed to load settings:", error);
       showSnackbar("Failed to load settings", "error");
@@ -69,7 +70,8 @@ export const SettingsProvider = ({ children }) => {
         { settings: newSettings },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setSettings(newSettings);
+      // Fusionne pour garantir tous les champs
+      setSettings({ ...defaultSettings, ...newSettings });
       showSnackbar("Settings saved successfully!");
       return true;
     } catch (error) {
@@ -87,7 +89,7 @@ export const SettingsProvider = ({ children }) => {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setSettings(defaultSettings);
+      setSettings({ ...defaultSettings });
       showSnackbar("Settings reset to defaults");
       return true;
     } catch (error) {
@@ -123,7 +125,11 @@ export const SettingsProvider = ({ children }) => {
   }, [token]);
 
   useEffect(() => {
-    if (settings.language) {
+    if (
+      settings.language &&
+      i18n &&
+      typeof i18n.changeLanguage === "function"
+    ) {
       i18n.changeLanguage(settings.language);
     }
   }, [settings.language, i18n]);

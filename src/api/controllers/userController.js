@@ -1,5 +1,22 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+/**
+ * Middleware d'upload pour l'avatar
+ */
+const AVATAR_DIR = path.join(__dirname, "../../../uploads/avatars");
+if (!fs.existsSync(AVATAR_DIR)) {
+  fs.mkdirSync(AVATAR_DIR, { recursive: true });
+}
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, AVATAR_DIR),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + path.extname(file.originalname)),
+});
+exports.avatarUpload = multer({ storage });
 
 /**
  * Récupérer tous les utilisateurs
@@ -115,6 +132,7 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ message: "Utilisateur non trouvé" });
     }
 
+    // Vérifier si l'email est déjà utilisé par un autre utilisateur
     if (email && email !== user.email) {
       const existingUser = await User.findByEmail(email);
       if (
@@ -130,6 +148,7 @@ exports.updateProfile = async (req, res) => {
     if (lastName) updateFields.lastName = lastName;
     if (email) updateFields.email = email;
 
+    // Gestion du mot de passe
     if (currentPassword && newPassword) {
       const isMatch = await bcrypt.compare(currentPassword, user.password);
       if (!isMatch) {
@@ -151,6 +170,7 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
+    // Gestion de l'avatar
     if (req.file) {
       updateFields.avatar = `/uploads/avatars/${req.file.filename}`;
     }
@@ -200,12 +220,10 @@ exports.updateAvatar = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
-
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "Utilisateur non trouvé" });
     }
-
     await User.delete(id);
     res.json({ message: "Utilisateur supprimé avec succès" });
   } catch (error) {

@@ -10,7 +10,8 @@ import TopBar from "./components/layout/Topbar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { UserProvider } from "./components/context/UserContext";
 import { SidebarProvider } from "./components/context/SidebarContext";
-import { SettingsProvider } from "./components/context/SettingsContext"; // adapte le chemin selon ton projet
+import { SettingsProvider } from "./components/context/SettingsContext";
+// adapte le chemin selon ton projet
 
 import premiumTheme from "./theme/premiumTheme";
 import axios from "axios";
@@ -41,6 +42,8 @@ import SalesChart from "./components/charts/SalesChart";
 import AdminPanel from "./components/Dashboard/AdminPanel";
 import UserProfile from "./components/Dashboard/UserProfile";
 import CommandeDetails from "./pages/Commandes/CommandeDetails";
+import Ventes from "./pages/Ventes";
+
 
 // URL de base de l'API
 const API_BASE_URL = "http://localhost:5000/api";
@@ -399,6 +402,12 @@ export default function App() {
                           <RouteWithErrorBoundary
                             element={<PieceVehiculeList />}
                           />
+                        }
+                      />
+                      <Route
+                        path="/ventes"
+                        element={
+                          <RouteWithErrorBoundary element={<Ventes />} />
                         }
                       />
                     </Routes>

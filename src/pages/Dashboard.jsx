@@ -13,14 +13,17 @@ import { BudgetCard } from "../components/cards/BudgetCard";
 import { CustomersCard } from "../components/cards/CustomersCard";
 import { ProgressCard } from "../components/cards/ProgressCard";
 import { ProfitCard } from "../components/cards/ProfitCard";
-import  SalesChart  from "../components/charts/SalesChart";
-import { TrafficChart } from "../components/charts/TrafficChart";
+import SalesChart from "../components/charts/SalesChart";
+//import {ProfessionalStatsCard}
+//import { TrafficChart } from "../components/charts/TrafficChart";
 import { RecentOrders } from "../components/tables/RecentOrders";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import { useCustomTheme } from "../components/context/ThemeContext"; 
+import { useCustomTheme } from "../components/context/ThemeContext.jsx";
+
 import Footer  from "../components/Recherche/footer"; 
 import "../styles/dashboard.css";
+import { ProfessionalStatsCard } from './../components/cards/ProfessionalStatsCard';
 
  const Dashboard = () => {
   const theme = useTheme();
@@ -38,7 +41,6 @@ import "../styles/dashboard.css";
           textAlign: "left",
           marginBottom: "20px",
         }}
-        
       >
         Tableau de bord
       </Typography>
@@ -69,14 +71,20 @@ import "../styles/dashboard.css";
           </Paper>
         </Grid>
 
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper className="dashboard-card">
+            <ProfessionalStatsCard />
+          </Paper>
+        </Grid>
+
         {/* Graphiques */}
         <Grid item xs={12} md={8}>
           <Paper
             sx={{
-              p: 2,
+              p: 6,
               display: "flex",
               flexDirection: "column",
-              height: 400,
+              height: 800,
               width: 1470,
               borderRadius: 3,
               boxShadow: 3,
@@ -89,27 +97,8 @@ import "../styles/dashboard.css";
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={4}>
-          <Paper
-            sx={{
-              p: 2,
-              display: "flex",
-              flexDirection: "column",
-              height: 400,
-              width: 1470,
-              borderRadius: 3,
-              boxShadow: 3,
-            }}
-          >
-            <Typography variant="h6" gutterBottom>
-              Sources de trafic
-            </Typography>
-            <TrafficChart />
-          </Paper>
-        </Grid>
-
         {/* Tableau des commandes récentes */}
-        <Grid item xs={12}>
+        {/* <Grid item xs={12}>
           <Paper
             sx={{
               p: 2,
@@ -126,10 +115,10 @@ import "../styles/dashboard.css";
             </Typography>
             <RecentOrders />
           </Paper>
-        </Grid>
+        </Grid>*/}
       </Grid>
 
-      {/* Bouton pour changer le thème */}
+      {/*
       <Tooltip title="Changer le thème" placement="left">
         <Fab
           size="medium"
@@ -144,15 +133,7 @@ import "../styles/dashboard.css";
         >
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </Fab>
-      </Tooltip>
-      <Box
-        sx={{ display: "flex", flexDirection: "column", minHeight: "10vh" }}
-      >
-        <Container maxWidth="xl" sx={{ mt: 4, mb: 4, flex: 1 }}>
-
-        </Container>
-        <Footer />
-      </Box>
+      </Tooltip>*/}
     </Container>
   );
 };

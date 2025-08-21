@@ -21,6 +21,15 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  Card,
+  CardContent,
+  Divider,
+  Badge,
 } from "@mui/material";
 import {
   Edit,
@@ -30,6 +39,15 @@ import {
   FilterList,
   Refresh,
   Person,
+  Visibility,
+  Email,
+  Phone,
+  LocationOn,
+  PhotoCamera,
+  Upload,
+  Close,
+  Save,
+  Cancel,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 import ClientForm from "./ClientForm";
@@ -39,7 +57,12 @@ import {
   createClient,
   updateClient,
   deleteClient,
+  uploadClientImage,
 } from "../../Api2/clientAPI";
+import { useAuth } from "../../components/context/AuthContext";
+import axios from "axios";
+
+const AUTH_API_URL = "http://localhost:5000/api/auth/me";
 
 // Composants stylisés premium
 const PremiumTableRow = styled(TableRow)(({ theme }) => ({
@@ -88,6 +111,18 @@ const PremiumIconButton = styled(IconButton)(({ theme }) => ({
   },
 }));
 
+const VisuallyHiddenInput = styled("input")({
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  height: 1,
+  overflow: "hidden",
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  whiteSpace: "nowrap",
+  width: 1,
+});
+
 const ClientList = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +132,14 @@ const ClientList = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openDetails, setOpenDetails] = useState(false);
+  const [selectedClient, setSelectedClient] = useState({});
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [userRole, setUserRole] = useState("user");
+  const [userId, setUserId] = useState(null);
+
+  const { user } = useAuth();
 
   const loadClients = async () => {
     try {
@@ -122,9 +165,41 @@ const ClientList = () => {
 
   useEffect(() => {
     loadClients();
+    fetchUserInfo();
   }, []);
 
+  const fetchUserInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("Token non trouvé");
+        return;
+      }
+
+      const response = await axios.get(AUTH_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserRole(response.data.role);
+      setUserId(response.data.id);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération des infos utilisateur:",
+        error
+      );
+    }
+  };
+
   const handleDelete = async (id) => {
+    if (userRole !== "admin") {
+      Swal.fire({
+        title: "Accès refusé",
+        text: "Seuls les administrateurs peuvent supprimer des clients",
+        icon: "warning",
+        confirmButtonText: "Compris",
+      });
+      return;
+    }
+
     const confirm = await Swal.fire({
       title: "Confirmer la suppression",
       html: `<div style="font-size: 16px;">Voulez-vous vraiment supprimer ce client? <br/><small>Cette action est irréversible.</small></div>`,
@@ -213,6 +288,77 @@ const ClientList = () => {
     }
   };
 
+  const handleViewDetails = (client) => {
+    if (!client) return;
+    setSelectedClient(client);
+    setOpenDetails(true);
+  };
+
+  const handleImageUpload = async (event, clientId) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        title: "Fichier trop volumineux",
+        text: "La taille de l'image ne doit pas dépasser 5MB",
+        icon: "warning",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      Swal.fire({
+        title: "Format invalide",
+        text: "Veuillez sélectionner un fichier image valide",
+        icon: "warning",
+      });
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target.result);
+      reader.readAsDataURL(file);
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      await uploadClientImage(clientId, formData);
+      await loadClients();
+
+      Swal.fire({
+        title: "Succès!",
+        text: "Image mise à jour avec succès",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      setImagePreview(null);
+    } catch (error) {
+      console.error("Erreur lors de l'upload:", error);
+      Swal.fire({
+        title: "Erreur",
+        text: "Impossible de mettre à jour l'image",
+        icon: "error",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const canEdit = (client) => {
+    if (!client) return false;
+    return userRole === "admin" || client.userId === userId;
+  };
+
+  const canDelete = () => {
+    return userRole === "admin";
+  };
+
   const filteredClients = clients.filter((client) =>
     Object.values(client).some(
       (value) =>
@@ -224,6 +370,299 @@ const ClientList = () => {
   const emptyRows =
     rowsPerPage -
     Math.min(rowsPerPage, filteredClients.length - page * rowsPerPage);
+
+  const ClientDetailsModal = () => (
+    <Dialog
+      open={openDetails}
+      onClose={() => setOpenDetails(false)}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+        },
+      }}
+    >
+      {selectedClient && Object.keys(selectedClient).length > 0 ? (
+        <>
+          <DialogTitle
+            sx={{
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              p: 3,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Person sx={{ fontSize: 28 }} />
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Détails du Client
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => setOpenDetails(false)}
+              sx={{ color: "white" }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
+
+          <DialogContent sx={{ p: 0 }}>
+            <Box>
+              <Box
+                sx={{
+                  p: 4,
+                  background:
+                    "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                  textAlign: "center",
+                }}
+              >
+                <Box
+                  sx={{ position: "relative", display: "inline-block", mb: 3 }}
+                >
+                  <Avatar
+                    src={selectedClient.image}
+                    sx={{
+                      width: 120,
+                      height: 120,
+                      mx: "auto",
+                      border: "4px solid white",
+                      boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+                      fontSize: 48,
+                      fontWeight: "bold",
+                      background:
+                        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    }}
+                  >
+                    {selectedClient.name?.charAt(0)?.toUpperCase()}
+                  </Avatar>
+
+                  {canEdit(selectedClient) && (
+                    <Tooltip title="Changer la photo" arrow>
+                      <Badge
+                        overlap="circular"
+                        anchorOrigin={{
+                          vertical: "bottom",
+                          horizontal: "right",
+                        }}
+                        badgeContent={
+                          <IconButton
+                            component="label"
+                            size="small"
+                            sx={{
+                              backgroundColor: "#667eea",
+                              color: "white",
+                              "&:hover": { backgroundColor: "#5a6fd8" },
+                              width: 36,
+                              height: 36,
+                            }}
+                            disabled={uploadingImage}
+                          >
+                            {uploadingImage ? (
+                              <CircularProgress
+                                size={16}
+                                sx={{ color: "white" }}
+                              />
+                            ) : (
+                              <PhotoCamera sx={{ fontSize: 18 }} />
+                            )}
+                            <VisuallyHiddenInput
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) =>
+                                handleImageUpload(e, selectedClient.id)
+                              }
+                            />
+                          </IconButton>
+                        }
+                      />
+                    </Tooltip>
+                  )}
+                </Box>
+
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 700, mb: 1, color: "#2c3e50" }}
+                >
+                  {selectedClient.name}
+                </Typography>
+
+                <Chip
+                  label={
+                    selectedClient.status === "active"
+                      ? "Client Actif"
+                      : "Client Inactif"
+                  }
+                  color={
+                    selectedClient.status === "active" ? "success" : "default"
+                  }
+                  sx={{ mb: 2, fontWeight: 600 }}
+                />
+              </Box>
+
+              <Box sx={{ p: 4 }}>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        height: "100%",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 2,
+                        "&:hover": {
+                          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", mb: 2 }}
+                      >
+                        <Email sx={{ color: "#667eea", mr: 2 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Contact
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ mb: 2 }} />
+                      <Box sx={{ mb: 2 }}>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mb: 0.5 }}
+                        >
+                          Email
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                          {selectedClient.email || "Non renseigné"}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mb: 0.5 }}
+                        >
+                          Téléphone
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                          {selectedClient.phone || "Non renseigné"}
+                        </Typography>
+                      </Box>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        height: "100%",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 2,
+                        "&:hover": {
+                          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", mb: 2 }}
+                      >
+                        <LocationOn sx={{ color: "#667eea", mr: 2 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Adresse
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ mb: 2 }} />
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {selectedClient.address || "Adresse non renseignée"}
+                      </Typography>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 2,
+                        "&:hover": {
+                          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                        },
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                        Informations système
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" color="text.secondary">
+                            Date de création
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {selectedClient.createdAt
+                              ? new Date(
+                                  selectedClient.createdAt
+                                ).toLocaleDateString("fr-FR")
+                              : "Non disponible"}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" color="text.secondary">
+                            Dernière modification
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {selectedClient.updatedAt
+                              ? new Date(
+                                  selectedClient.updatedAt
+                                ).toLocaleDateString("fr-FR")
+                              : "Non disponible"}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 3, justifyContent: "space-between" }}>
+            <Button
+              onClick={() => setOpenDetails(false)}
+              variant="outlined"
+              sx={{ borderRadius: 2 }}
+            >
+              Fermer
+            </Button>
+            {canEdit(selectedClient) && (
+              <Button
+                onClick={() => {
+                  setEditClient(selectedClient);
+                  setOpenDetails(false);
+                  setOpenForm(true);
+                }}
+                variant="contained"
+                startIcon={<Edit />}
+                sx={{
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  borderRadius: 2,
+                }}
+              >
+                Modifier
+              </Button>
+            )}
+          </DialogActions>
+        </>
+      ) : (
+        <Box sx={{ p: 4, textAlign: "center" }}>
+          <CircularProgress />
+        </Box>
+      )}
+    </Dialog>
+  );
 
   return (
     <Fade in timeout={600}>
@@ -238,7 +677,6 @@ const ClientList = () => {
           }}
           className="premium-paper"
         >
-          {/* Header premium */}
           <Box
             sx={{
               p: 3,
@@ -254,15 +692,21 @@ const ClientList = () => {
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Person sx={{ fontSize: 40 }} />
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Gestion des Clients
-              </Typography>
+              <Box>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 700,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Gestion des Clients
+                </Typography>
+                <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
+                  Connecté en tant que{" "}
+                  {userRole === "admin" ? "Administrateur" : "Utilisateur"}
+                </Typography>
+              </Box>
             </Box>
 
             <Box
@@ -341,7 +785,6 @@ const ClientList = () => {
             </Box>
           </Box>
 
-          {/* Tableau premium */}
           <TableContainer>
             <Table>
               <TableHead>
@@ -366,9 +809,9 @@ const ClientList = () => {
                   <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Adresse
                   </TableCell>
-                  {/*     <TableCell sx={{ color: "white", fontWeight: 600 }}>
+                  <TableCell sx={{ color: "white", fontWeight: 600 }}>
                     Statut
-                  </TableCell>*/}
+                  </TableCell>
                   <TableCell
                     align="right"
                     sx={{ color: "white", fontWeight: 600 }}
@@ -382,7 +825,7 @@ const ClientList = () => {
                 {loading ? (
                   [...Array(rowsPerPage)].map((_, index) => (
                     <PremiumTableRow key={index}>
-                      {[...Array(6)].map((_, cellIndex) => (
+                      {[...Array(7)].map((_, cellIndex) => (
                         <TableCell key={cellIndex}>
                           <Skeleton
                             animation="wave"
@@ -454,40 +897,27 @@ const ClientList = () => {
                           }}
                         >
                           <TableCell>
-                            <Box
+                            <Avatar
+                              src={
+                                client.image
+                                  ? client.image.startsWith("/uploads/")
+                                    ? `http://localhost:5000${client.image}`
+                                    : client.image
+                                  : undefined
+                              }
+                              alt={client.name || "Client"}
                               sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 2,
+                                width: 48,
+                                height: 48,
+                                border: "2px solid #667eea",
+                                bgcolor: !client.image ? "#667eea" : "transparent",
+                                color: !client.image ? "#fff" : "inherit",
+                                fontWeight: "bold",
+                                fontSize: 20,
                               }}
                             >
-                              <Avatar
-                                src={client?.image || undefined}
-                                alt={client?.name || "Client"}
-                                sx={{
-                                  width: 48,
-                                  height: 48,
-                                  border: "2px solid #667eea",
-                                  boxShadow:
-                                    "0 4px 12px rgba(102, 126, 234, 0.2)",
-                                  bgcolor: !client?.image
-                                    ? "#667eea"
-                                    : "transparent",
-                                  color: !client?.image ? "#fff" : "inherit",
-                                  fontWeight: "bold",
-                                  fontSize: 20,
-                                }}
-                              >
-                                {client?.name
-                                  ? client.name.charAt(0).toUpperCase()
-                                  : "C"}
-                              </Avatar>
-                              <Typography
-                                sx={{ fontWeight: 500, color: "#3a4b6d" }}
-                              >
-                                {client?.name || "Client inconnu"}
-                              </Typography>
-                            </Box>
+                              {client.name ? client.name.charAt(0).toUpperCase() : "C"}
+                            </Avatar>
                           </TableCell>
                           <TableCell
                             sx={{
@@ -516,7 +946,7 @@ const ClientList = () => {
                               {client.address}
                             </Typography>
                           </TableCell>
-                          {/*         <TableCell>
+                          <TableCell>
                             <Chip
                               label={
                                 client.status === "active" ? "Actif" : "Inactif"
@@ -536,7 +966,6 @@ const ClientList = () => {
                               }}
                             />
                           </TableCell>
-*/}{" "}
                           <TableCell align="right">
                             <Box
                               sx={{
@@ -545,36 +974,56 @@ const ClientList = () => {
                                 gap: 1,
                               }}
                             >
-                              <Tooltip title="Modifier" arrow>
+                              <Tooltip title="Voir détails" arrow>
                                 <PremiumIconButton
-                                  onClick={() => {
-                                    setEditClient(client);
-                                    setOpenForm(true);
-                                  }}
+                                  onClick={() => handleViewDetails(client)}
                                   sx={{
-                                    color: "#3a4b6d",
+                                    color: "#2196f3",
                                     "&:hover": {
-                                      color: "#667eea",
+                                      color: "#1976d2",
                                       transform: "scale(1.2)",
                                     },
                                   }}
                                 >
-                                  <Edit />
+                                  <Visibility />
                                 </PremiumIconButton>
                               </Tooltip>
-                              <Tooltip title="Supprimer" arrow>
-                                <PremiumIconButton
-                                  onClick={() => handleDelete(client.id)}
-                                  sx={{
-                                    color: "#ff4444",
-                                    "&:hover": {
-                                      transform: "scale(1.2)",
-                                    },
-                                  }}
-                                >
-                                  <Delete />
-                                </PremiumIconButton>
-                              </Tooltip>
+
+                              {canEdit(client) && (
+                                <Tooltip title="Modifier" arrow>
+                                  <PremiumIconButton
+                                    onClick={() => {
+                                      setEditClient(client);
+                                      setOpenForm(true);
+                                    }}
+                                    sx={{
+                                      color: "#3a4b6d",
+                                      "&:hover": {
+                                        color: "#667eea",
+                                        transform: "scale(1.2)",
+                                      },
+                                    }}
+                                  >
+                                    <Edit />
+                                  </PremiumIconButton>
+                                </Tooltip>
+                              )}
+
+                              {canDelete() && (
+                                <Tooltip title="Supprimer" arrow>
+                                  <PremiumIconButton
+                                    onClick={() => handleDelete(client.id)}
+                                    sx={{
+                                      color: "#ff4444",
+                                      "&:hover": {
+                                        transform: "scale(1.2)",
+                                      },
+                                    }}
+                                  >
+                                    <Delete />
+                                  </PremiumIconButton>
+                                </Tooltip>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -591,7 +1040,6 @@ const ClientList = () => {
             </Table>
           </TableContainer>
 
-          {/* Pagination premium */}
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
@@ -618,7 +1066,6 @@ const ClientList = () => {
           />
         </Paper>
 
-        {/* Bouton mobile premium */}
         <Box
           sx={{
             position: "fixed",
@@ -650,13 +1097,14 @@ const ClientList = () => {
           </Tooltip>
         </Box>
 
-        {/* Modal du formulaire */}
         <ClientForm
           open={openForm}
           onClose={() => setOpenForm(false)}
           onSubmit={handleFormSubmit}
           clientToEdit={editClient}
         />
+
+        <ClientDetailsModal />
       </Box>
     </Fade>
   );

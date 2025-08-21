@@ -1,6 +1,7 @@
 const express = require("express");
 const clientController = require("../controllers/clientController");
 const authMiddleware = require("../middleware/authMiddleware");
+const uploadMiddleware = require("../middleware/uploadMiddleware"); // Middleware pour gérer les uploads
 
 const router = express.Router();
 
@@ -13,12 +14,14 @@ router.get("/:id", clientController.getClientById);
 
 // ✅ Routes protégées
 router.post("/", authMiddleware, clientController.createClient);
-router.post("/", clientController.createClient);
+router.put("/:id", authMiddleware, clientController.updateClient);
+router.delete("/:id", authMiddleware, clientController.deleteClient);
 
-// ✅ Route pour mettre à jour un client
-router.put("/:id", clientController.updateClient);
-
-// ✅ Route pour supprimer un client
-router.delete("/:id", clientController.deleteClient);
-
+const upload = require("../middleware/uploadMiddleware");
+router.post("/clients", upload.single("image"), clientController.createClient);
+router.put(
+  "/clients/:id",
+  upload.single("image"),
+  clientController.updateClient
+);
 module.exports = router;

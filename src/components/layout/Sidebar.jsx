@@ -35,9 +35,9 @@ import {
   Assessment as AssessmentIcon,
   Security as SecurityIcon,
 } from "@mui/icons-material";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { Link } from "react-router-dom";
 import { useTheme, styled } from "@mui/material/styles";
-
 
 const PremiumDrawer = styled(Drawer)(({ theme }) => ({
   "& .MuiDrawer-paper": {
@@ -94,20 +94,9 @@ const MENU_ITEMS = [
   {
     text: "Tableau de bord",
     icon: <DashboardIcon sx={{ color: "#6fd1ff" }} />,
-    path: "/",
-    subItems: [
-      {
-        text: "Statistiques",
-        icon: <BarChartIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
-        path: "/statistics",
-      },
-      {
-        text: "Rapports",
-        icon: <AssessmentIcon sx={{ color: "#6fd1ff", fontSize: "1.2rem" }} />,
-        path: "/dashboard",
-      },
-    ],
+    path: "/dashboard",
   },
+
   {
     text: "Clients",
     icon: <PeopleIcon sx={{ color: "#81c784" }} />,
@@ -132,6 +121,11 @@ const MENU_ITEMS = [
     text: "Pièces",
     icon: <BuildIcon sx={{ color: "#7986cb" }} />,
     path: "/pieces",
+  },
+  {
+    text: "Ventes",
+    icon: <ShoppingCartIcon sx={{ color: "#ff9800" }} />,
+    path: "/ventes",
   },
   {
     text: "Stocks",
@@ -159,6 +153,7 @@ const MENU_ITEMS = [
     icon: <ListAltIcon sx={{ color: "#4dd0e1" }} />,
     path: "/factures",
   },
+
   {
     text: "Paramètres",
     icon: <SettingsIcon sx={{ color: "#cfd8dc" }} />,
@@ -184,9 +179,11 @@ const MENU_ITEMS = [
     ],
   },
   {
+    /*  {
     text: "Feedback",
     icon: <FeedbackIcon sx={{ color: "#fff176" }} />,
     path: "/feedback",
+  },*/
   },
 ];
 
@@ -263,7 +260,8 @@ export const Sidebar = memo(({ open, onClose }) => {
                 fontWeight: 700,
                 background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 WebkitBackgroundClip: "text",
-                backgroundClip: "text",      color: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
               }}
             >
               AutoPartsPro

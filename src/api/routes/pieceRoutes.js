@@ -1,5 +1,6 @@
 const express = require("express");
 const pieceController = require("../controllers/pieceController");
+const upload = require("../middleware/uploadMiddleware");
 const uploadController = require("../controllers/uploadController");
 
 const router = express.Router();
@@ -12,12 +13,13 @@ router.get("/", pieceController.getAllPieces);
 router.get("/:id", pieceController.getPiece);
 
 // ✅ Route pour créer une nouvelle pièce
-router.post("/", pieceController.createPiece);
+router.post("/", upload.single("image"), pieceController.createPiece);
 
 // ✅ Route pour mettre à jour une pièce
-router.put("/:id", pieceController.updatePiece);
+router.put("/:id", upload.single("image"), pieceController.updatePiece);
 
 // ✅ Route pour supprimer une pièce
 router.delete("/:id", pieceController.deletePiece);
 
 module.exports = router;
+ 
